@@ -10,12 +10,13 @@ LMArenaImagenAutomator 是一个基于 Puppeteer 的自动化图像生成工具�
 
 ### ✨ 主要特性
 
-- 🎭 **拟人化操作**：使用贝塞尔曲线模拟真实鼠标移动轨迹
+- 💁‍♂️ **拟人操作**：模拟真实鼠标移动轨迹和抖动
 - 🤖 **智能输入**：模拟人类打字速度和错误纠正行为
 - 🖼️ **多图支持**：最多支持同时上传 5 张参考图片
 - 🔐 **安全认证**：基于 Bearer Token 的 API 鉴权
 - 📊 **队列管理**：智能任务队列，防止请求过载
 - 🌐 **代理支持**：支持 HTTP 和 SOCKS5 代理配置
+- 🎭 **特征伪装**：尽量伪装成真实浏览器的特征（详情参考文档结尾）
 
 ---
 
@@ -25,7 +26,7 @@ LMArenaImagenAutomator 是一个基于 Puppeteer 的自动化图像生成工具�
 
 - **Node.js**: 16.0 或更高版本
 - **操作系统**: Windows、Linux 或 macOS
-- **浏览器**: Google Chrome 或 Chromium (可选，Puppeteer 会自动下载)
+- **浏览器**: Google Chrome 或 Chromium (Puppeteer 会自动下载，但是**更推荐**使用Google Chrome)
 
 ### 安装步骤
 
@@ -443,7 +444,7 @@ chrome:
 </details>
 
 <details>
-<summary>🐧 Linux 环境下非无头模式运行</summary>
+<summary>🐧 【Linux 环境下非无头模式运行】</summary>
 
 **问题**: 需要在 Linux 服务器上显示浏览器界面（如手动过验证码）
 
@@ -475,6 +476,60 @@ chrome:
 
 </details>
 
+<details>
+<summary>🎭 【浏览器特征伪装】</summary>
+
+**问题**: 如何优化浏览器特征伪装，减少验证码弹出频率？
+
+**当前状态**:
+- ✅ **Windows 10 官方 Chrome**: 已通过 [antibot](https://bot.sannysoft.com/) 和 [CreepJS](https://abrahamjuliot.github.io/creepjs/) 测试（无红色警示）
+- ⚠️ **Linux 环境**: 未完全通过 CreepJS 测试，但基本不影响使用
+
+**进一步优化建议**:
+
+> [!TIP]
+> 完成后，可有效缓解验证码的弹出频率。
+
+**1. 使用官方 Chrome（推荐）**
+
+不推荐使用 Chromium，因为它缺少 MP4/H.264 解码器等插件，且被大量爬虫使用，会成为明显特征。
+
+**Linux 安装官方 Chrome**:
+```bash
+# 从 Google 官方下载 Chrome deb 安装包
+# 大陆服务器可手动下载deb安装包 https://www.google.com/chrome/?platform=linux
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo dpkg -i google-chrome-stable_current_amd64.deb
+sudo apt-get install -f  # 修复可能的依赖问题
+```
+
+**配置方式**:
+
+修改 `config.yaml`，可使用`which google-chrome`指令查询路径
+```yaml
+chrome:
+  path: "/usr/bin/google-chrome"
+```
+
+使用环境变量可跳过 Puppeteer 自动下载 Chromium
+```bash
+export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD="true"
+```
+
+**2. 优化字体指纹**
+
+Linux 服务器通常只安装了极少量字体（甚至没有中文），这会增加指纹特征。
+
+**安装常用字体**:
+```bash
+# 安装中文字体（必备，否则中文提示词将显示方框）
+sudo apt install fonts-wqy-zenhei fonts-wqy-microhei
+
+# 安装微软核心字体（减少字体指纹差异）
+sudo apt install ttf-mscorefonts-installer
+```
+
+</details>
 
 ---
 

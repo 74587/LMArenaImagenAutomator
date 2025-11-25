@@ -11,10 +11,13 @@
 		"genkey": "node lib/genApiKey.js"
 	},
 	"dependencies": {
+		"ghost-cursor": "^1.4.1",
 		"got-scraping": "^4.1.2",
 		"js-yaml": "^4.1.1",
 		"proxy-chain": "^2.6.0",
 		"puppeteer": "^24.31.0",
+		"puppeteer-extra": "^3.3.6",
+		"puppeteer-extra-plugin-stealth": "^2.11.2",
 		"sharp": "^0.34.5"
 	}
 }

@@ -4,12 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-## [1.1.1] - 2024-11-24
+
+## [1.2.0] - 2024-11-26
+
+### Added
+- **浏览器特征伪装**
+  - 在 Windows10 官方 Chrome 环境下已通过 [antibot](https://bot.sannysoft.com/) 和 [CreepJS](https://abrahamjuliot.github.io/creepjs/) 测试（无红色警示）（但在Linux下未完全通过，需要用户配合，详情和进一步伪装请查看文档常见问题部分）
+  - 引入 `ghost-cursor` 优化鼠标移动轨迹伪装，不再重复造轮子
+
+### Changed
+- **指定模型**
+  - 更改模型UUID的拦截器不再使用注入Fetch脚本和Puppeteer Interception，改用CDP拦截器，减少特征
+  
+- **浏览器特征伪装**
+  - 优化浏览器启动参数，减少特征
+  - 优化窗口大小计算方式
+
+---
+
+## [1.1.1] - 2024-11-25
 
 ### Fixed
 - **指定模型**
   - 修复因错误的UUID映射导致的 gemini-3-pro-image-preview 模型触发HTTP500的 BUG
 
+---
 
 ## [1.1.0] - 2024-11-24
 
