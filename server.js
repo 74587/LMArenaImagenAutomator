@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { getBackend } from './lib/backend/index.js';
-import { getModelsForBackend, resolveModelId } from './lib/backend/models.js';
+import { getModelsForBackend, resolveModelId, getImagePolicy, IMAGE_POLICY } from './lib/backend/models.js';
 import { logger } from './lib/logger.js';
 import crypto from 'crypto';
 
@@ -314,7 +314,28 @@ async function startServer() {
                         logger.info('服务器', '未指定模型，使用网页默认', { id });
                     }
 
+                    // 图片策略校验
+                    const hasImage = imagePaths.length > 0;
+                    const policy = data.model ? getImagePolicy(name, data.model) : IMAGE_POLICY.OPTIONAL;
+
+                    if (policy === IMAGE_POLICY.REQUIRED && !hasImage) {
+                        const errorMsg = `Model ${data.model} requires a reference image.`;
+                        logger.warn('服务器', errorMsg, { id });
+                        if (isQueueMode) { sseHelper.send('error', { msg: errorMsg }); sseHelper.end(); }
+                        else { res.writeHead(400); res.end(JSON.stringify({ error: errorMsg })); }
+                        return;
+                    }
+
+                    if (policy === IMAGE_POLICY.FORBIDDEN && hasImage) {
+                        const errorMsg = `Model ${data.model} does not accept images.`;
+                        logger.warn('服务器', errorMsg, { id });
+                        if (isQueueMode) { sseHelper.send('error', { msg: errorMsg }); sseHelper.end(); }
+                        else { res.writeHead(400); res.end(JSON.stringify({ error: errorMsg })); }
+                        return;
+                    }
+
                     logger.info('服务器', `[队列] 请求入队: ${prompt.slice(0, 10)}...`, { id, images: imagePaths.length });
+
 
                     if (isQueueMode) {
                         sseHelper.send('status', { status: 'queued', position: queue.length + 1 });
