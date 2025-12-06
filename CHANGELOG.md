@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] - 2024-11-28
+## [2.0.0] - 2025-12-06
+
+### Added
+- **支持新网站**
+ - 支持对 Nano Banana Free 网站的支持
+
+### Changed
+- **代码重构**
+  - 将项目核心迁移为 Playwright + Camoufox 的方案增强反检测
+  - 迁移前的 Puppeteer 版本已在分支中保留，但不影响使用的情况下不会再进行更新和修复！
+
+## [1.3.1] - 2025-12-05
+
+### Added
+- **同步竞技场模型UUID**
+  - 新增 gemini-3-pro-image-preview-2k 模型的支持
+
+## [1.3.0] - 2025-11-28
 
 ### Added
 - **Gemini Enterprise Business 支持**
@@ -19,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLI 交互增强**
   - 更新 `lib/test.js` 测试工具，支持交互式选择模型和测试方式
 
-## [1.2.1] - 2024-11-27
+## [1.2.1] - 2025-11-27
 
 ### Added
 - **登录模式**
@@ -29,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **浏览器进程解耦**
   - 调整架构为程序与浏览器分离模式：主程序现通过连接远程调试端口（Remote Debugging Port）控制浏览器，旨在降低自动化检测特征
 
-## [1.2.0] - 2024-11-26
+## [1.2.0] - 2025-11-26
 
 ### Added
 - **浏览器指纹伪装增强**
@@ -44,13 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **环境参数优化**
   - 优化浏览器启动参数配置与窗口尺寸计算逻辑，进一步减少特征暴露
 
-## [1.1.1] - 2024-11-25
+## [1.1.1] - 2025-11-25
 
 ### Fixed
 - **模型映射修复**
   - 修复因 UUID 映射错误导致 `gemini-3-pro-image-preview` 模型请求返回 HTTP 500 的异常
 
-## [1.1.0] - 2024-11-24
+## [1.1.0] - 2025-11-24
 
 ### Added
 - **多模型支持体系**
@@ -62,13 +79,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - OpenAI 兼容接口 (`/v1/chat/completions`) 及队列接口 (`/v1/queue/join`) 均已适配 `model` 参数
   - *注：若未指定模型，系统将默认调用网页端的缺省模型*
 
-## [1.0.1] - 2024-11-23
+## [1.0.1] - 2025-11-23
 
 ### Fixed
 - **代理鉴权修复**
   - 修复了带身份验证的 SOCKS5 代理无法建立连接的问题。
 
-## [1.0.0] - 2024-11-23
+## [1.0.0] - 2025-11-23
 
 ### Added
 - **初始版本发布**

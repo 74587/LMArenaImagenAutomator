@@ -2,42 +2,54 @@
 logLevel: info
 
 server:
-  # 服务器模式: openai (标准兼容) | queue (流式队列)
-  type: openai
   # 监听端口
   port: 3000
   # 鉴权 Token (Bearer Token) (可使用 npm run genkey 生成)
   auth: sk-change-me-to-your-secure-key
+  # 保活
+  keepalive:
+    # 是否启用流式保活
+    # 使用OpenAI接口的标准流式接口格式，客户端请求需强制使用 stream: true
+    enable: false
+
+    # 心跳模式
+    # "comment": (推荐) 发送 :keepalive 注释。不污染数据，绝大多数 SDK 支持，不会影响接口标准
+    # "content": (备用) 在 choices[0].delta.content = "" 中发送空字符串
+    #            仅当你使用的客户端非常特殊，必须收到 data JSON 包才重置超时时使用
+    mode: "comment"
 
 backend:
-  # 选择后端: lmarena (竞技场) | gemini_biz (Gemini Enterprise Business)
+  # 适配器设置
+  # - lmarena (LMArena)
+  # - gemini_biz (Gemini Enterprise Business)
+  # - nanobananafree_ai (Nano Banana Free)
   type: lmarena
   
   # Gemini Business 设置
   geminiBiz:
     # 入口链接
-    # 示例: "https://business.gemini.google/home/cid/8888a888-b6e0-88be-86e1-888cf3ee8cf4?csesidx=1666666666"
+    # 示例: "https://business.gemini.google/home/cid/8888a888-b6e0-88be-86e1-888cf3ee8cf4"
     entryUrl: ""
 
 queue:
   # 最大排队数
-  # 仅对OpenAI模式做出限制，非必要不建议更改
-  # 因常见客户端都有超时保护，队列大于2是一定会触发超时保护的
+  # 仅对未开启流式保活模式时做出限制，非必要不建议更改
+  # 因客户端可能有超时保护，队列大于2是一定会触发超时保护的
   maxQueueSize: 2
   # 图片数量上限 
   # 网页最多支持10个附件，如果设置大于10则直接丢弃超出10的图片
   imageLimit: 5
 
-chrome:
-  # 浏览器可执行文件路径 (留空则使用Puppeteer默认)
-  # Windows系统示例 "C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe"
-  # Linux系统示例 "/usr/bin/google-chrome"
-  # path: "C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe"
+browser:
+  # 浏览器可执行文件路径 (留空则使用 Camoufox 默认下载路径)
+  # Windows系统示例 "C:\\camoufox\\camoufox.exe"
+  # Linux系统示例 "/opt/camoufox/camoufox"
+  path: ""
   
   # 是否启用无头模式
   headless: false
   
-  # 是否启用 GPU (无GPU设备运行请使用false)
+  # 是否启用 GPU (Camoufox 已内置指纹伪装，无GPU设备运行请使用false)
   gpu: false
   
   # 代理设置

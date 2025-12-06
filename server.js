@@ -4,16 +4,16 @@ import path from 'path';
 import sharp from 'sharp';
 import { getBackend } from './lib/backend/index.js';
 import { getModelsForBackend, resolveModelId, getImagePolicy, IMAGE_POLICY } from './lib/backend/models.js';
-import { logger } from './lib/logger.js';
+import { logger } from './lib/utils/logger.js';
 import crypto from 'crypto';
 
 // 使用统一后端获取配置和函数
 const { config, name, initBrowser, generateImage, TEMP_DIR } = getBackend();
 
-
 const PORT = config.server.port || 3000;
 const AUTH_TOKEN = config.server.auth;
-const SERVER_MODE = config.server.type || 'openai'; // 'openai' 或 'queue'
+const KEEPALIVE_ENABLED = config.server.keepalive?.enable ?? true;
+const KEEPALIVE_MODE = config.server.keepalive?.mode || 'comment';
 
 // --- 全局状态 ---
 let browserContext = null; // 浏览器上下文 {browser, page, client, width, height}
@@ -34,14 +34,38 @@ async function processQueue() {
     const task = queue.shift();
     processingCount++;
 
-    // 如果是 Queue 模式,通知客户端状态变更
-    if (SERVER_MODE === 'queue' && task.sse) {
-        task.sse.send('status', { status: 'processing' });
-    }
-
     try {
-        const { req, res, prompt, imagePaths, modelId, modelName, id, sse } = task;
+        const { req, res, prompt, imagePaths, modelId, modelName, id, isStreaming } = task;
         logger.info('服务器', '[队列] 开始处理任务', { id, remaining: queue.length });
+
+        // 如果是流式，启动心跳
+        let heartbeatInterval = null;
+        if (isStreaming) {
+            heartbeatInterval = setInterval(() => {
+                if (res.writableEnded) {
+                    clearInterval(heartbeatInterval);
+                    return;
+                }
+                // 发送心跳包
+                if (KEEPALIVE_MODE === 'comment') {
+                    res.write(`:keepalive\n\n`);
+                } else {
+                    // content 模式：发送空 delta
+                    const chunk = {
+                        id: 'chatcmpl-' + Date.now(),
+                        object: 'chat.completion.chunk',
+                        created: Math.floor(Date.now() / 1000),
+                        model: modelName || 'default-model',
+                        choices: [{
+                            index: 0,
+                            delta: { content: '' },
+                            finish_reason: null
+                        }]
+                    };
+                    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                }
+            }, 3000);
+        }
 
         // 确保浏览器已初始化
         if (!browserContext) {
@@ -51,54 +75,59 @@ async function processQueue() {
         // 调用核心生图逻辑
         const result = await generateImage(browserContext, prompt, imagePaths, modelId, { id });
 
-        // 清理临时图片
-        for (const p of imagePaths) {
-            try { fs.unlinkSync(p); } catch (e) { }
-        }
+        // 清除心跳
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
 
         // 处理结果
         let finalContent = '';
-        let queueResult = {};
 
         if (result.error) {
             // 特殊错误处理:reCAPTCHA
             if (result.error === 'recaptcha validation failed') {
-                if (SERVER_MODE === 'openai') {
+                if (isStreaming) {
+                    res.write(`data: ${JSON.stringify({ error: 'recaptcha validation failed' })}\n\n`);
+                    res.write(`data: [DONE]\n\n`);
+                    res.end();
+                } else {
                     res.writeHead(500, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'recaptcha validation failed' }));
-                } else {
-                    task.sse.send('result', { status: 'error', image: null, msg: 'recaptcha validation failed' });
-                    task.sse.send('done', '[DONE]');
-                    task.sse.end();
                 }
                 return;
             }
             finalContent = `[生成错误] ${result.error}`;
-            queueResult = { status: 'error', image: null, msg: result.error };
         } else if (result.image) {
             try {
                 // result.image 已经是 "data:image/png;base64,..." 格式
-                // 提取纯 Base64 部分用于 b64_json
-                const base64Data = result.image.split(',')[1];
-
                 // 构造 Markdown 图片展示 (Data URI)
                 finalContent = `![generated](${result.image})`;
-
-                queueResult = { status: 'completed', image: base64Data, msg: '' };
-                queueResult = { status: 'completed', image: base64Data, msg: '' };
                 logger.info('服务器', '图片已准备就绪 (Base64)', { id });
             } catch (e) {
                 logger.error('服务器', '图片处理失败', { id, error: e.message });
                 finalContent = `[图片处理失败] ${e.message}`;
-                queueResult = { status: 'error', image: null, msg: `Processing failed: ${e.message}` };
             }
         } else {
             finalContent = result.text || '生成失败';
-            queueResult = { status: 'completed', image: null, msg: result.text };
         }
 
         // 发送响应
-        if (SERVER_MODE === 'openai') {
+        if (isStreaming) {
+            // 流式响应
+            const chunk = {
+                id: 'chatcmpl-' + Date.now(),
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: modelName || 'default-model',
+                choices: [{
+                    index: 0,
+                    delta: { content: finalContent },
+                    finish_reason: 'stop'
+                }]
+            };
+            res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+            res.write(`data: [DONE]\n\n`);
+            res.end();
+        } else {
+            // 非流式响应
             const response = {
                 id: 'chatcmpl-' + Date.now(),
                 object: 'chat.completion',
@@ -115,26 +144,29 @@ async function processQueue() {
             };
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(response));
-        } else {
-            // Queue Mode
-            task.sse.send('result', queueResult);
-            task.sse.send('done', '[DONE]');
-            task.sse.end();
         }
 
     } catch (err) {
         logger.error('服务器', '任务处理失败', { id: task.id, error: err.message });
-        if (SERVER_MODE === 'openai') {
+        if (task.isStreaming) {
+            if (!task.res.writableEnded) {
+                task.res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+                task.res.write(`data: [DONE]\n\n`);
+                task.res.end();
+            }
+        } else {
             if (!task.res.writableEnded) {
                 task.res.writeHead(500, { 'Content-Type': 'application/json' });
                 task.res.end(JSON.stringify({ error: err.message }));
             }
-        } else {
-            task.sse.send('result', { status: 'error', image: null, msg: err.message });
-            task.sse.send('done', '[DONE]');
-            task.sse.end();
         }
     } finally {
+        // 无论成功失败，都尝试清理临时图片
+        if (task && task.imagePaths) {
+            for (const p of task.imagePaths) {
+                try { fs.unlinkSync(p); } catch (e) { }
+            }
+        }
         processingCount--;
         // 递归处理下一个任务
         processQueue();
@@ -166,10 +198,7 @@ async function startServer() {
         }
 
         // --- 路由分发 ---
-        const isQueueMode = SERVER_MODE === 'queue';
-        const targetPath = isQueueMode ? '/v1/queue/join' : '/v1/chat/completions';
-
-        // 1. 模型列表接口 (OpenAI & Queue 模式通用)
+        // 1. 模型列表接口
         if (req.method === 'GET' && req.url === '/v1/models') {
             const models = getModelsForBackend(name);
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -177,66 +206,64 @@ async function startServer() {
             return;
         }
 
-        if (req.method === 'POST' && req.url.startsWith(targetPath)) {
-            // --- SSE 设置 (仅 Queue 模式) ---
-            let sseHelper = null;
-            if (isQueueMode) {
-                res.writeHead(200, {
-                    'Content-Type': 'text/event-stream',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive'
-                });
-
-                sseHelper = {
-                    send: (event, data) => {
-                        res.write(`event: ${event}\n`);
-                        res.write(`data: ${typeof data === 'object' ? JSON.stringify(data) : data}\n\n`);
-                    },
-                    end: () => res.end()
-                };
-
-                // 启动心跳
-                const heartbeat = setInterval(() => {
-                    if (res.writableEnded) {
-                        clearInterval(heartbeat);
-                        return;
-                    }
-                    sseHelper.send('heartbeat', Date.now());
-                }, 3000);
-            }
-
+        // 2. 聊天补全接口
+        if (req.method === 'POST' && req.url.startsWith('/v1/chat/completions')) {
             const chunks = [];
             req.on('data', chunk => chunks.push(chunk));
             req.on('end', async () => {
                 try {
-                    // --- 限流检查 ---
-                    if (!isQueueMode && processingCount + queue.length >= MAX_CONCURRENT + MAX_QUEUE_SIZE) {
-                        logger.warn('服务器', '请求过多，已拒绝 (最大队列限制)', { id });
-                        if (isQueueMode) {
-                            sseHelper.send('error', { msg: 'Too Many Requests' });
-                            sseHelper.end();
-                        } else {
-                            res.writeHead(429, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ error: 'Too Many Requests. Server is busy.' }));
-                        }
-                        return;
-                    }
-
                     const body = Buffer.concat(chunks).toString();
                     const data = JSON.parse(body);
                     const messages = data.messages;
+                    const isStreaming = data.stream === true;
+
+                    // Stream 参数验证
+                    if (KEEPALIVE_ENABLED && !isStreaming) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Stream mode is required when keepalive is enabled. Please set "stream": true in your request.' }));
+                        return;
+                    }
+
+                    // 限流检查（仅在未开启 keepalive 时限制）
+                    if (!KEEPALIVE_ENABLED && processingCount + queue.length >= MAX_CONCURRENT + MAX_QUEUE_SIZE) {
+                        logger.warn('服务器', '请求过多，已拒绝 (最大队列限制)', { id });
+                        res.writeHead(429, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Too Many Requests. Server is busy.' }));
+                        return;
+                    }
+
+                    // 如果是流式，设置 SSE 响应头
+                    if (isStreaming) {
+                        res.writeHead(200, {
+                            'Content-Type': 'text/event-stream',
+                            'Cache-Control': 'no-cache',
+                            'Connection': 'keep-alive'
+                        });
+                    }
 
                     if (!messages || messages.length === 0) {
-                        if (isQueueMode) { sseHelper.send('error', { msg: 'No messages' }); sseHelper.end(); }
-                        else { res.writeHead(400); res.end(JSON.stringify({ error: 'No messages' })); }
+                        if (isStreaming) {
+                            res.write(`data: ${JSON.stringify({ error: 'No messages' })}\n\n`);
+                            res.write(`data: [DONE]\n\n`);
+                            res.end();
+                        } else {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: 'No messages' }));
+                        }
                         return;
                     }
 
                     // 筛选用户消息
                     const userMessages = messages.filter(m => m.role === 'user');
                     if (userMessages.length === 0) {
-                        if (isQueueMode) { sseHelper.send('error', { msg: 'No user messages' }); sseHelper.end(); }
-                        else { res.writeHead(400); res.end(JSON.stringify({ error: 'No user messages' })); }
+                        if (isStreaming) {
+                            res.write(`data: ${JSON.stringify({ error: 'No user messages' })}\n\n`);
+                            res.write(`data: [DONE]\n\n`);
+                            res.end();
+                        } else {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: 'No user messages' }));
+                        }
                         return;
                     }
                     const lastMessage = userMessages[userMessages.length - 1];
@@ -261,8 +288,14 @@ async function startServer() {
                                     if (imageCount > IMAGE_LIMIT) {
                                         const errorMsg = `Too many images. Maximum ${IMAGE_LIMIT} images allowed.`;
                                         logger.warn('server', errorMsg, { id });
-                                        if (isQueueMode) { sseHelper.send('error', { msg: errorMsg }); sseHelper.end(); }
-                                        else { res.writeHead(400); res.end(JSON.stringify({ error: errorMsg })); }
+                                        if (isStreaming) {
+                                            res.write(`data: ${JSON.stringify({ error: errorMsg })}\n\n`);
+                                            res.write(`data: [DONE]\n\n`);
+                                            res.end();
+                                        } else {
+                                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                                            res.end(JSON.stringify({ error: errorMsg }));
+                                        }
                                         return;
                                     }
                                 } else {
@@ -306,8 +339,14 @@ async function startServer() {
                         } else {
                             const errorMsg = `Invalid model for backend ${name}: ${data.model}`;
                             logger.warn('服务器', errorMsg, { id });
-                            if (isQueueMode) { sseHelper.send('error', { msg: errorMsg }); sseHelper.end(); }
-                            else { res.writeHead(400); res.end(JSON.stringify({ error: errorMsg })); }
+                            if (isStreaming) {
+                                res.write(`data: ${JSON.stringify({ error: errorMsg })}\n\n`);
+                                res.write(`data: [DONE]\n\n`);
+                                res.end();
+                            } else {
+                                res.writeHead(400, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify({ error: errorMsg }));
+                            }
                             return;
                         }
                     } else {
@@ -321,38 +360,42 @@ async function startServer() {
                     if (policy === IMAGE_POLICY.REQUIRED && !hasImage) {
                         const errorMsg = `Model ${data.model} requires a reference image.`;
                         logger.warn('服务器', errorMsg, { id });
-                        if (isQueueMode) { sseHelper.send('error', { msg: errorMsg }); sseHelper.end(); }
-                        else { res.writeHead(400); res.end(JSON.stringify({ error: errorMsg })); }
+                        if (isStreaming) {
+                            res.write(`data: ${JSON.stringify({ error: errorMsg })}\n\n`);
+                            res.write(`data: [DONE]\n\n`);
+                            res.end();
+                        } else {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: errorMsg }));
+                        }
                         return;
                     }
 
                     if (policy === IMAGE_POLICY.FORBIDDEN && hasImage) {
                         const errorMsg = `Model ${data.model} does not accept images.`;
                         logger.warn('服务器', errorMsg, { id });
-                        if (isQueueMode) { sseHelper.send('error', { msg: errorMsg }); sseHelper.end(); }
-                        else { res.writeHead(400); res.end(JSON.stringify({ error: errorMsg })); }
+                        if (isStreaming) {
+                            res.write(`data: ${JSON.stringify({ error: errorMsg })}\n\n`);
+                            res.write(`data: [DONE]\n\n`);
+                            res.end();
+                        } else {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: errorMsg }));
+                        }
                         return;
                     }
 
                     logger.info('服务器', `[队列] 请求入队: ${prompt.slice(0, 10)}...`, { id, images: imagePaths.length });
 
-
-                    if (isQueueMode) {
-                        sseHelper.send('status', { status: 'queued', position: queue.length + 1 });
-                    }
-
                     // 将任务加入队列
-                    queue.push({ req, res, prompt, imagePaths, sse: sseHelper, modelId, modelName: data.model || null, id });
+                    queue.push({ req, res, prompt, imagePaths, modelId, modelName: data.model || null, id, isStreaming });
 
                     // 触发队列处理
                     processQueue();
 
                 } catch (err) {
                     logger.error('服务器', '服务器处理失败', { id, error: err.message });
-                    if (isQueueMode && sseHelper) {
-                        sseHelper.send('error', { msg: err.message });
-                        sseHelper.end();
-                    } else if (!res.writableEnded) {
+                    if (!res.writableEnded) {
                         res.writeHead(500, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: err.message }));
                     }
@@ -366,7 +409,7 @@ async function startServer() {
 
     server.listen(PORT, () => {
         logger.info('服务器', `HTTP 服务器启动成功，监听端口 ${PORT}`);
-        logger.info('服务器', `运行模式: ${SERVER_MODE === 'openai' ? 'OpenAI 兼容模式' : 'Queue 队列模式'}`);
+        logger.info('服务器', `流式保活: ${KEEPALIVE_ENABLED ? '已启用 (' + KEEPALIVE_MODE + ' 模式)' : '已禁用'}`);
         logger.info('服务器', `最大队列: ${MAX_QUEUE_SIZE}，最大图片数量: ${IMAGE_LIMIT}`);
     });
 }
