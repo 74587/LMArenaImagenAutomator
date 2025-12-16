@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2025-12-17
+
+### ✨ Added
+- **支持文本模型**
+  - 添加专门的文本模型适配器（目前仅支持 LMArena 和 Gemini Busineess）
+  - 支持网络搜索模型，例如 gemini-3-pro-grounding、grok-4-1-fast-search
+- **图片调度**
+  - 若有适配器同时支持同一个模型，但是图片策略不同，将会优先将带图片的请求分发给支持图片的适配器
+- **为自动通过验证码做准备**
+  - 新增测试适配器 turnstile_test ，为将来需要自动过 CloudFlare 验证码做准备
+
 ## [3.0.1] - 2025-12-16
 
 ### ✨ Added
