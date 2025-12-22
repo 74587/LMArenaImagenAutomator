@@ -1,8 +1,13 @@
 /**
  * @fileoverview 运行环境初始化脚本（CLI）
- * @description 用于下载/准备运行所需依赖（如 Camoufox、better-sqlite3 等），并按需更新 `config.yaml`。
+ * @description 用于下载/准备运行所需依赖（如 Camoufox、better-sqlite3 等）。
  *
- * 用法：`npm run init`
+ * 用法：
+ *   npm run init                     # 自动初始化（无代理）
+ *   npm run init -- -proxy           # 自动初始化（交互式输入代理）
+ *   npm run init -- -proxy=http://127.0.0.1:7890
+ *   npm run init -- -proxy=socks5://user:pass@127.0.0.1:1080
+ *   npm run init -- -custom          # 自定义模式
  */
 
 import fs from 'fs';
@@ -11,15 +16,80 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { gotScraping } from 'got-scraping';
 import compressing from 'compressing';
-import yaml from 'yaml';
 import { logger } from '../src/utils/logger.js';
-import { getHttpProxy, getProxyConfig } from '../src/utils/proxy.js';
-import { select } from '@inquirer/prompts';
+import { select, input } from '@inquirer/prompts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.join(__dirname, '..');
 const TEMP_DIR = path.join(PROJECT_ROOT, 'data', 'temp');
-const CONFIG_PATH = path.join(PROJECT_ROOT, 'config.yaml');
+
+/**
+ * 解析命令行代理参数
+ * @returns {Promise<string|null>} 代理 URL
+ */
+async function parseProxyArg() {
+    // 查找 -proxy 或 -proxy=xxx 参数
+    const proxyArg = process.argv.find(arg => arg.startsWith('-proxy'));
+
+    if (!proxyArg) {
+        return null;
+    }
+
+    // -proxy=http://... 格式
+    if (proxyArg.includes('=')) {
+        const proxyUrl = proxyArg.split('=')[1];
+        if (proxyUrl) {
+            logger.info('初始化', `使用代理: ${proxyUrl}`);
+            return proxyUrl;
+        }
+    }
+
+    // -proxy 不带参数，交互式输入
+    logger.info('初始化', '请输入代理配置...');
+
+    const proxyType = await select({
+        message: '代理类型',
+        choices: [
+            { name: 'HTTP', value: 'http' },
+            { name: 'SOCKS5', value: 'socks5' }
+        ]
+    });
+
+    const host = await input({
+        message: '代理服务器地址',
+        default: '127.0.0.1',
+        validate: (val) => val.trim().length > 0 || '地址不能为空'
+    });
+
+    const port = await input({
+        message: '代理端口',
+        default: '7890',
+        validate: (val) => {
+            const num = parseInt(val, 10);
+            return (num > 0 && num <= 65535) || '端口必须是 1-65535 的数字';
+        }
+    });
+
+    const username = await input({
+        message: '用户名 (可选，回车跳过)',
+    });
+
+    const password = await input({
+        message: '密码 (可选，回车跳过)',
+    });
+
+    // 构建代理 URL
+    let proxyUrl = `${proxyType}://`;
+    if (username && password) {
+        proxyUrl += `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`;
+    } else if (username) {
+        proxyUrl += `${encodeURIComponent(username)}@`;
+    }
+    proxyUrl += `${host}:${port}`;
+
+    logger.info('初始化', `使用代理: ${proxyUrl}`);
+    return proxyUrl;
+}
 
 // 确保临时目录存在
 if (!fs.existsSync(TEMP_DIR)) {
@@ -339,9 +409,6 @@ async function installCamoufox(platform, arch, proxyUrl) {
 
     logger.info('初始化', `Camoufox 安装成功: ${camoufoxDir}`);
 
-    // 更新 config.yaml
-    updateConfigPath(platform, camoufoxDir);
-
     // 创建 version.json
     const versionJsonPath = path.join(camoufoxDir, 'version.json');
     const versionData = {
@@ -355,51 +422,6 @@ async function installCamoufox(platform, arch, proxyUrl) {
     fs.unlinkSync(downloadPath);
 }
 
-/**
- * 更新 config.yaml 中的 browser.path
- */
-function updateConfigPath(platform, camoufoxDir) {
-    try {
-        const configContent = fs.readFileSync(CONFIG_PATH, 'utf8');
-
-        // 解析为文档对象 (CST)
-        const doc = yaml.parseDocument(configContent);
-
-        // 构造绝对路径
-        let browserPath;
-        if (platform === 'win32') {
-            browserPath = path.join(camoufoxDir, 'camoufox.exe');
-        } else if (platform === 'darwin') {
-            browserPath = path.join(camoufoxDir, 'Camoufox.app', 'Contents', 'MacOS', 'camoufox');
-        } else {
-            browserPath = path.join(camoufoxDir, 'camoufox');
-        }
-
-        // 规范化路径分隔符
-        browserPath = browserPath.replace(/\\/g, '/');
-
-        // 安全地更新路径，如果节点不存在则创建
-        if (!doc.has('browser')) {
-            doc.set('browser', { path: browserPath });
-        } else {
-            const browserNode = doc.get('browser');
-            if (browserNode && typeof browserNode.set === 'function') {
-                browserNode.set('path', browserPath);
-            } else {
-                // 如果 browser 不是对象（理论上不应该发生），强制覆盖
-                doc.set('browser', { path: browserPath });
-            }
-        }
-
-        // 转回字符串，保留注释
-        const updatedYaml = doc.toString();
-        fs.writeFileSync(CONFIG_PATH, updatedYaml, 'utf8');
-
-        logger.info('初始化', `已更新配置文件 browser.path: ${browserPath}`);
-    } catch (e) {
-        logger.error('初始化', '更新配置文件失败', { error: e.message });
-    }
-}
 
 /**
  * 主流程
@@ -409,6 +431,14 @@ function updateConfigPath(platform, camoufoxDir) {
         logger.info('初始化', '========================================');
         logger.info('初始化', '依赖初始化脚本启动');
         logger.info('初始化', '========================================');
+
+        // 代理使用提示
+        if (!process.argv.some(arg => arg.startsWith('-proxy'))) {
+            logger.warn('初始化', '该脚本需连接 GitHub 下载资源。若网络受限，请使用代理：');
+            logger.warn('初始化', ' - 用法: npm run init -- -proxy 可交互式填写代理信息');
+            logger.warn('初始化', ' - 同时支持直接传入参数或者使用带鉴权的代理 (支持HTTP和SOCKS5)');
+            logger.warn('初始化', ' - 示例: npm run init -- -proxy=http://username:passwd@127.0.0.1:7890');
+        }
 
         // 显示系统信息
         const { platform, arch, nodeVersion, abi } = getPlatformInfo();
@@ -438,18 +468,8 @@ function updateConfigPath(platform, camoufoxDir) {
 
         logger.info('初始化', 'ABI 版本检查通过');
 
-        // 读取并转换代理配置
-        let proxyUrl = null;
-        try {
-            const configContent = fs.readFileSync(CONFIG_PATH, 'utf8');
-            const config = yaml.parse(configContent);
-            const proxyConfig = getProxyConfig(config);
-            if (proxyConfig) {
-                proxyUrl = await getHttpProxy(proxyConfig);
-            }
-        } catch (e) {
-            logger.warn('初始化', '无法读取配置文件或转换代理，不使用代理');
-        }
+        // 解析代理参数
+        const proxyUrl = await parseProxyArg();
 
         // 检查是否为自定义模式
         const isCustomMode = process.argv.includes('-custom');

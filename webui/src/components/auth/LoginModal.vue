@@ -64,7 +64,7 @@ const handleLogin = async () => {
             </div>
 
             <a-form layout="vertical">
-                <a-form-item label="Access Token">
+                <a-form-item label="API Token">
                     <a-input-password v-model:value="token" placeholder="请输入 API Token" size="large"
                         @pressEnter="handleLogin">
                         <template #prefix>
