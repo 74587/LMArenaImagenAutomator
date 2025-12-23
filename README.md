@@ -43,6 +43,7 @@
 | [**ZenMux**](https://zenmux.ai/) | ✅ | ❌ | 🚫 | 
 | [**ChatGPT**](https://chatgpt.com/) | ✅ | ✅ | 🚫 | 
 | [**DeepSeek**](https://chat.deepseek.com/) | ✅ | 🚫 | 🚫 | 
+| [**Sora**](https://sora.chatgpt.com/) | 🚫 | 🚫 | ✅ | 
 | 待续... | - | - | - | 
 
 > [!NOTE]

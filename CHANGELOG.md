@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 支持 ChatGPT 文本生成适配器
   - 支持 zAI 文本生成适配器
   - 支持 DeepSeek 文本生成适配器
+  - 支持 Sora 视频生成适配器
 
 ### 🔄 Changed
 - **适配器实现更改**
