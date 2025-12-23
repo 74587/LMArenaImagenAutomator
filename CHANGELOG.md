@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2025-12-23
+
+### ✨ Added
+- **新增适配器**
+  - 支持 ChatGPT 文本生成适配器
+  - 支持 zAI 文本生成适配器
+  - 支持 DeepSeek 文本生成适配器
+
+### 🔄 Changed
+- **适配器实现更改**
+  - zAI 图片生成适配器不再使用拦截请求修改响应体的方式，改为UI选择模型列表，并且Nano Banana Pro 支持选择1K、2K、4K
+
 ## [3.3.2] - 2025-12-22
 
 ### 🔄 Changed
