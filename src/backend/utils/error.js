@@ -57,6 +57,13 @@ export function normalizePageError(err, meta = {}) {
         logger.error('适配器', '页面状态无效', meta);
         return { error: '页面状态无效，请重新初始化', code: ADAPTER_ERRORS.PAGE_INVALID, retryable: true };
     }
+    // API_TIMEOUT: waitApiResponse 内部转换后的超时错误
+    if (err.message?.startsWith('API_TIMEOUT:')) {
+        const timeoutMsg = err.message.replace('API_TIMEOUT: ', '');
+        logger.error('适配器', timeoutMsg, meta);
+        return { error: timeoutMsg, code: ADAPTER_ERRORS.TIMEOUT_ERROR, retryable: true };
+    }
+    // 兼容原生 TimeoutError (其他地方抛出的)
     if (err.name === 'TimeoutError' || err.message?.includes('Timeout')) {
         logger.error('适配器', '请求超时', meta);
         return { error: '请求超时 (120秒), 请检查网络或稍后重试', code: ADAPTER_ERRORS.TIMEOUT_ERROR, retryable: true };

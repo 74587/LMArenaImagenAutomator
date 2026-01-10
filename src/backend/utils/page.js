@@ -337,6 +337,14 @@ export async function waitApiResponse(page, options = {}) {
         }
 
         return response;
+    } catch (e) {
+        // 检测超时错误，转换为标准错误类型
+        if (e.name === 'TimeoutError' || e.message?.includes('Timeout')) {
+            const timeoutSec = Math.round(timeout / 1000);
+            throw new Error(`API_TIMEOUT: 等待响应超时 (${timeoutSec}秒)`);
+        }
+        // 其他错误直接重新抛出（如 PAGE_CLOSED, PAGE_CRASHED 等）
+        throw e;
     } finally {
         pageWatcher.cleanup();
     }
