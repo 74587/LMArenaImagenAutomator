@@ -4,7 +4,7 @@
  *
  * - 环境变量：LOG_LEVEL=debug|info|warn|error
  * - 输出格式：YYYY-MM-DD HH:mm:ss.SSS [LEVEL] [模块] 消息 | k=v ...
- * - 日志文件：data/temp/system.log（超过 5MB 自动轮转）
+ * - 日志文件：data/logs/system.log（超过 5MB 自动轮转）
  */
 
 import process from 'process';
@@ -23,7 +23,7 @@ const COLORS = {
 };
 
 // 日志文件配置
-const LOG_DIR = path.join(process.cwd(), 'data', 'temp');
+const LOG_DIR = path.join(process.cwd(), 'data', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'system.log');
 const LOG_FILE_OLD = path.join(LOG_DIR, 'system.log.old');
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB

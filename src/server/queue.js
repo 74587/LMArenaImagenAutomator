@@ -14,6 +14,7 @@ import {
     buildChatCompletionChunk
 } from './respond.js';
 import { ERROR_CODES } from './errors.js';
+import { incrementSuccess, incrementFailed } from '../utils/stats.js';
 
 /**
  * @typedef {object} TaskContext
@@ -118,7 +119,8 @@ export function createQueueManager(queueConfig, callbacks) {
 
             // 处理结果
             if (result.error) {
-                // 生成失败：使用标准错误格式返回
+                // 生成失败：记录统计并返回错误
+                await incrementFailed();
                 sendApiError(res, {
                     code: ERROR_CODES.GENERATION_FAILED,
                     message: result.error,
@@ -141,6 +143,7 @@ export function createQueueManager(queueConfig, callbacks) {
                 finalContent = result.text || '生成失败';
             }
             logger.info('服务器', '结果已准备就绪', { id });
+            await incrementSuccess();
 
             // 发送成功响应
             logger.info('服务器', '准备发送响应...', { id, isStreaming, contentLength: finalContent.length });
@@ -159,6 +162,8 @@ export function createQueueManager(queueConfig, callbacks) {
             // 清除心跳
             if (heartbeatInterval) clearInterval(heartbeatInterval);
 
+            // 记录失败统计
+            await incrementFailed();
             logger.error('服务器', '任务处理失败', { id, error: err.message });
             sendApiError(res, {
                 code: ERROR_CODES.INTERNAL_ERROR,

@@ -10,7 +10,8 @@ import {
     LineChartOutlined,
     SyncOutlined,
     ExclamationCircleOutlined,
-    CheckCircleOutlined
+    CheckCircleOutlined,
+    CloseCircleOutlined
 } from '@ant-design/icons-vue';
 
 const systemStore = useSystemStore();
@@ -201,6 +202,22 @@ onUnmounted(() => {
                             <a-statistic title="等待排队" :value="queueStats.waiting">
                                 <template #suffix>
                                     <span style="font-size: 14px; color: #8c8c8c;">/ {{ queueStats.total }}</span>
+                                </template>
+                            </a-statistic>
+                        </a-col>
+                    </a-row>
+                    <a-row :gutter="16" style="margin-top: 16px">
+                        <a-col :span="12">
+                            <a-statistic title="今日成功" :value="systemStore.stats.success || 0">
+                                <template #prefix>
+                                    <CheckCircleOutlined style="color: #52c41a" />
+                                </template>
+                            </a-statistic>
+                        </a-col>
+                        <a-col :span="12">
+                            <a-statistic title="今日失败" :value="systemStore.stats.failed || 0">
+                                <template #prefix>
+                                    <CloseCircleOutlined style="color: #ff4d4f" />
                                 </template>
                             </a-statistic>
                         </a-col>

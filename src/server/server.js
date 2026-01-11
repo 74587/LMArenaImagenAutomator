@@ -25,6 +25,7 @@ const { getBackend } = await import('../backend/index.js');
 const { logger } = await import('../utils/logger.js');
 const { createQueueManager, createGlobalRouter } = await import('./index.js');
 const { isUnderSupervisor } = await import('../utils/ipc.js');
+const { loadTodayStats } = await import('../utils/stats.js');
 
 // ==================== 初始化配置 ====================
 
@@ -131,6 +132,9 @@ const handleRequest = createGlobalRouter({
  * @returns {Promise<void>}
  */
 async function startServer() {
+    // 加载今日统计
+    await loadTodayStats();
+
     // 登录模式提示
     if (isLoginMode) {
         logger.info('服务器', '登录模式已就绪，请在浏览器中完成登录操作');

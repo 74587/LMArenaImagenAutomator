@@ -9,7 +9,8 @@ import {
     WarningOutlined,
     CloseCircleOutlined,
     InfoCircleOutlined,
-    BugOutlined
+    BugOutlined,
+    CheckCircleOutlined
 } from '@ant-design/icons-vue';
 import { message, Modal } from 'ant-design-vue';
 
@@ -22,6 +23,11 @@ const autoRefresh = ref(false);
 const refreshInterval = ref(null);
 const searchText = ref('');
 const levelFilter = ref('all');
+
+// 统计查询相关
+const dateRange = ref([]);
+const rangeStats = ref({ success: 0, failed: 0, days: 0 });
+const statsLoading = ref(false);
 
 // 日志级别配置
 const levelConfig = {
@@ -141,6 +147,61 @@ const toggleAutoRefresh = (newState) => {
     }
 };
 
+// 查询日期范围统计
+const fetchRangeStats = async () => {
+    if (!dateRange.value || dateRange.value.length !== 2) {
+        rangeStats.value = { success: 0, failed: 0, days: 0 };
+        return;
+    }
+
+    statsLoading.value = true;
+    try {
+        const [start, end] = dateRange.value;
+        const res = await fetch(
+            `/admin/stats/range?start=${start.format('YYYY-MM-DD')}&end=${end.format('YYYY-MM-DD')}`,
+            { headers: settingsStore.getHeaders() }
+        );
+        if (res.ok) {
+            rangeStats.value = await res.json();
+        }
+    } catch (e) {
+        message.error('获取统计失败');
+    } finally {
+        statsLoading.value = false;
+    }
+};
+
+// 删除选定范围的统计数据
+const clearRangeStats = () => {
+    if (!dateRange.value || dateRange.value.length !== 2) {
+        message.warning('请先选择日期范围');
+        return;
+    }
+
+    Modal.confirm({
+        title: '确认删除',
+        content: `确定要删除 ${dateRange.value[0].format('YYYY-MM-DD')} 至 ${dateRange.value[1].format('YYYY-MM-DD')} 的统计数据吗？`,
+        okText: '删除',
+        okType: 'danger',
+        cancelText: '取消',
+        async onOk() {
+            try {
+                const [start, end] = dateRange.value;
+                const res = await fetch(
+                    `/admin/stats/range?start=${start.format('YYYY-MM-DD')}&end=${end.format('YYYY-MM-DD')}`,
+                    { method: 'DELETE', headers: settingsStore.getHeaders() }
+                );
+                if (res.ok) {
+                    message.success('统计数据已删除');
+                    rangeStats.value = { success: 0, failed: 0, days: 0 };
+                }
+            } catch (e) {
+                message.error('删除失败');
+            }
+        }
+    });
+};
+
 onMounted(() => {
     fetchLogs();
 });
@@ -153,7 +214,47 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <a-card title="系统日志" :bordered="false">
+    <!-- 统计查询面板 -->
+    <a-card title="请求统计" :bordered="false">
+        <template #extra>
+            <a-button type="link" danger size="small" @click="clearRangeStats"
+                :disabled="!dateRange || dateRange.length !== 2">
+                <template #icon>
+                    <DeleteOutlined />
+                </template>
+                删除统计
+            </a-button>
+        </template>
+
+        <div class="stats-content">
+            <a-range-picker v-model:value="dateRange" :format="'YYYY-MM-DD'" :placeholder="['开始日期', '结束日期']"
+                size="small" style="width: 240px" @change="fetchRangeStats" />
+
+            <a-divider type="vertical" style="height: 32px; margin: 0 16px" />
+
+            <a-spin :spinning="statsLoading" size="small">
+                <div class="stats-numbers">
+                    <div class="stat-item success">
+                        <CheckCircleOutlined />
+                        <span class="stat-value">{{ rangeStats.success }}</span>
+                        <span class="stat-label">成功</span>
+                    </div>
+                    <div class="stat-item error">
+                        <CloseCircleOutlined />
+                        <span class="stat-value">{{ rangeStats.failed }}</span>
+                        <span class="stat-label">失败</span>
+                    </div>
+                    <div class="stat-item neutral">
+                        <span class="stat-value">{{ rangeStats.days }}</span>
+                        <span class="stat-label">天</span>
+                    </div>
+                </div>
+            </a-spin>
+        </div>
+    </a-card>
+
+    <!-- 系统日志 -->
+    <a-card title="系统日志" :bordered="false" style="margin-top: 24px">
         <!-- 工具栏 -->
         <div class="toolbar">
             <!-- 第一行：级别筛选和操作按钮 -->
@@ -303,6 +404,74 @@ onUnmounted(() => {
     .toolbar-row:last-child {
         flex: 1;
         max-width: 300px;
+    }
+}
+
+/* 统计内容样式 */
+
+.stats-content {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.stats-numbers {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: #fafafa;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.stat-item:hover {
+    background: #f0f0f0;
+}
+
+.stat-item.success {
+    color: #52c41a;
+}
+
+.stat-item.error {
+    color: #ff4d4f;
+}
+
+.stat-item.neutral {
+    color: #8c8c8c;
+}
+
+.stat-value {
+    font-size: 18px;
+    font-weight: 600;
+    font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #8c8c8c;
+}
+
+/* 响应式：小屏幕统计面板垂直布局 */
+@media (max-width: 576px) {
+    .stats-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .stats-content .ant-divider {
+        display: none;
+    }
+
+    .stats-numbers {
+        margin-top: 8px;
     }
 }
 </style>

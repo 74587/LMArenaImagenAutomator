@@ -44,11 +44,11 @@
 | [**Gemini Enterprise Business**](https://business.gemini.google/) | ✅ | ✅ | ✅ |
 | [**Nano Banana Free**](https://nanobananafree.ai/) | 🚫 | ✅ | 🚫 |
 | [**zAI**](https://zai.is/) | ✅ | ✅ | 🚫 |
-| [**Google Gemini**](https://gemini.google.com/) | ✅ | ✅ | ✅ | 
+| [**Google Gemini**](https://gemini.google.com/) | ✅ | ✅💧 | ✅💧 | 
 | [**ZenMux**](https://zenmux.ai/) | ✅ | ❌ | 🚫 | 
 | [**ChatGPT**](https://chatgpt.com/) | ✅ | ✅ | 🚫 | 
 | [**DeepSeek**](https://chat.deepseek.com/) | ✅ | 🚫 | 🚫 | 
-| [**Sora**](https://sora.chatgpt.com/) | 🚫 | 🚫 | ✅ | 
+| [**Sora**](https://sora.chatgpt.com/) | 🚫 | 🚫 | ✅💧 | 
 | [**Google Flow**](https://labs.google/fx/zh/tools/flow) | 🚫 | ✅ | ❌ | 
 | [**Doubao**](https://www.doubao.com/) | ✅ | ✅ | ❌ | 
 | To be continued... | - | - | - | 
@@ -56,7 +56,7 @@
 > [!NOTE]
 > **Get full model list**: Use the `GET /v1/models` endpoint to view all available models and their details under the current configuration.
 > 
-> ✅ Supported; ❌ Not currently supported, but may be in the future; 🚫 Website does not support, future support depends on the website's status;
+> ✅ Supported; ❌ Not currently supported, but may be in the future; 🚫 Website does not support, future support depends on the website's status; 💧 Results contain watermarks that cannot be removed.
 
 ---
 

@@ -35,6 +35,7 @@ import {
 } from '../../../config/validator.js';
 import { registry } from '../../../backend/registry.js';
 import { sendRestartSignal, sendStopSignal, isUnderSupervisor, getVncInfo } from '../../../utils/ipc.js';
+import { getTodayStats, getStatsRange, clearStatsRange } from '../../../utils/stats.js';
 
 /**
  * 读取请求体
@@ -395,15 +396,50 @@ export function createAdminRouter(context) {
 
             // ==================== 统计与监控 ====================
 
-            // GET /admin/stats - 基本统计
+            // GET /admin/stats - 基本统计（包含今日成功/失败）
             if (method === 'GET' && pathname === '/stats') {
                 const instances = config.backend?.pool?.instances || [];
                 const workers = config.backend?.pool?.workers || [];
+                const todayStats = getTodayStats();
 
                 sendJson(res, 200, {
                     instances: instances.length,
-                    workers: workers.length
+                    workers: workers.length,
+                    success: todayStats.success,
+                    failed: todayStats.failed
                 });
+                return;
+            }
+
+            // GET /admin/stats/range - 查询日期范围统计
+            if (method === 'GET' && pathname === '/stats/range') {
+                const url = new URL(req.url, `http://${req.headers.host}`);
+                const start = url.searchParams.get('start');
+                const end = url.searchParams.get('end');
+
+                if (!start || !end) {
+                    sendApiError(res, { code: ERROR_CODES.INVALID_REQUEST_BODY, message: '缺少 start 或 end 参数' });
+                    return;
+                }
+
+                const result = await getStatsRange(start, end);
+                sendJson(res, 200, result);
+                return;
+            }
+
+            // DELETE /admin/stats/range - 删除日期范围统计
+            if (method === 'DELETE' && pathname === '/stats/range') {
+                const url = new URL(req.url, `http://${req.headers.host}`);
+                const start = url.searchParams.get('start');
+                const end = url.searchParams.get('end');
+
+                if (!start || !end) {
+                    sendApiError(res, { code: ERROR_CODES.INVALID_REQUEST_BODY, message: '缺少 start 或 end 参数' });
+                    return;
+                }
+
+                const result = await clearStatsRange(start, end);
+                sendJson(res, 200, { success: true, deleted: result.deleted });
                 return;
             }
 

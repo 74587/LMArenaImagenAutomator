@@ -28,7 +28,9 @@ export const useSystemStore = defineStore('system', {
             successRate: 0,
             activeWorkers: 0,
             totalWorkers: 0,
-            avgResponseTime: 0
+            avgResponseTime: 0,
+            success: 0,
+            failed: 0
         }
     }),
 
