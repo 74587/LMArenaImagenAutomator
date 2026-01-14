@@ -133,8 +133,8 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         }
 
         // 3. 输入提示词 
-        await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
         logger.info('适配器', '输入提示词...', meta);
+        await safeClick(page, INPUT_SELECTOR, { bias: 'input' });
         await humanType(page, INPUT_SELECTOR, prompt);
 
         // 4. 设置请求拦截器（根据模型类型修改请求）

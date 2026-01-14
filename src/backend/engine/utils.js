@@ -134,15 +134,16 @@ export async function queryDeep(page, selector, rootHandle = null) {
 /**
  * 计算拟人化的随机点击坐标
  * @param {object} box - 元素边界框 {x, y, width, height}
- * @param {string} [type='random'] - 点击类型: 'input'(偏左) 或 'random'/'button'(随机)
+ * @param {string} [type='random'] - 点击类型: 'input'(偏左偏底部) 或 'random'/'button'(随机)
  * @returns {{x: number, y: number}} 计算出的坐标
  */
 export function getHumanClickPoint(box, type = 'random') {
     let x, y;
     if (type === 'input') {
-        // 输入框: 偏左 (5% - 40% 宽度), 垂直居中附近 (20% - 80% 高度)
+        // 输入框: 偏左 (5% - 40% 宽度), 偏底部 (60% - 90% 高度)
+        // 偏底部以适应富文本编辑器上方可能有附件预览的情况
         x = box.x + box.width * random(0.05, 0.4);
-        y = box.y + box.height * random(0.2, 0.8);
+        y = box.y + box.height * random(0.60, 0.90);
     } else {
         // 按钮/其他: 中心附近随机 (20% - 80% 宽度/高度)
         x = box.x + box.width * random(0.2, 0.8);
@@ -159,12 +160,15 @@ export function getHumanClickPoint(box, type = 'random') {
  * @param {object} [options] - 点击选项
  * @param {string} [options.bias='random'] - 偏移偏好: 'input' 或 'random'
  * @param {number} [options.clickCount=1] - 点击次数: 1=单击, 2=双击
+ * @param {number} [options.timeout=15000] - 超时时间 (毫秒)
  * @returns {Promise<void>}
  */
 export async function safeClick(page, target, options = {}) {
     const clickCount = options.clickCount || 1;
+    const timeout = options.timeout || 15000;
+    const maxRetries = 1;
 
-    try {
+    const doClick = async () => {
         let el;
 
         // 判断输入类型
@@ -201,8 +205,32 @@ export async function safeClick(page, target, options = {}) {
 
         // 降级逻辑
         await el.click({ clickCount });
-    } catch (err) {
-        throw err;
+    };
+
+    // 带超时和重试的执行
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            await Promise.race([
+                doClick(),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('CLICK_TIMEOUT')), timeout)
+                )
+            ]);
+            return; // 成功则退出
+        } catch (err) {
+            const isTimeout = err.message === 'CLICK_TIMEOUT';
+            const isLastAttempt = attempt === maxRetries;
+
+            if (isLastAttempt) {
+                // 最后一次尝试失败，抛出明确的错误
+                const selector = typeof target === 'string' ? target : '元素';
+                throw new Error(`点击操作失败 (${selector}): ${isTimeout ? '超时' : err.message}`);
+            }
+
+            // 非最后一次，记录日志并重试
+            logger.warn('浏览器', `点击操作${isTimeout ? '超时' : '失败'}，正在重试... (${attempt + 1}/${maxRetries + 1})`);
+            await sleep(300, 500);
+        }
     }
 }
 
