@@ -63,7 +63,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                     }
                     return false;
                 }
-            });
+            }, meta);
             logger.info('适配器', '图片上传完成', meta);
         }
 

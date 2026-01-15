@@ -50,7 +50,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             if (imgPaths.length > 1) {
                 logger.warn('适配器', `此后端仅支持1张图片, 已丢弃 ${imgPaths.length - 1} 张`, meta);
             }
-            await pasteImages(page, textareaSelector, singleImage);
+            await pasteImages(page, textareaSelector, singleImage, {}, meta);
             logger.info('适配器', '图片上传完成', meta);
         }
 

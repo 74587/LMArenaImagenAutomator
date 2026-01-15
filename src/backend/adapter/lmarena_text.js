@@ -75,7 +75,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         // 3. 上传图片
         if (imgPaths && imgPaths.length > 0) {
             logger.info('适配器', `开始上传 ${imgPaths.length} 张图片`, meta);
-            await pasteImages(page, textareaSelector, imgPaths);
+            await pasteImages(page, textareaSelector, imgPaths, {}, meta);
             logger.info('适配器', '图片上传完成', meta);
         }
 

@@ -132,7 +132,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                     }
                     return false;
                 }
-            });
+            }, meta);
         }
 
         // 3. 输入提示词

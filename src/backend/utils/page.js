@@ -4,6 +4,7 @@
  */
 
 import { sleep, safeClick, isPageValid, createPageCloseWatcher, getRealViewport, clamp, random } from '../engine/utils.js';
+import { TIMEOUTS } from '../../utils/constants.js';
 
 // ==========================================
 // 页面认证锁
@@ -58,7 +59,7 @@ export function isPageAuthLocked(page) {
  * @returns {Promise<void>}
  */
 export async function waitForInput(page, selectorOrLocator, options = {}) {
-    const { timeout = 20000, click = true } = options;
+    const { timeout = TIMEOUTS.INPUT_WAIT, click = true } = options;
 
     const isLocator = typeof selectorOrLocator !== 'string';
     const displayName = isLocator ? 'Locator' : selectorOrLocator;
@@ -104,7 +105,7 @@ export async function waitForInput(page, selectorOrLocator, options = {}) {
  * @throws {Error} 导航失败时抛出错误
  */
 export async function gotoWithCheck(page, url, options = {}) {
-    const { timeout = 20000 } = options;
+    const { timeout = TIMEOUTS.NAVIGATION } = options;
     try {
         const response = await page.goto(url, {
             waitUntil: 'domcontentloaded',
@@ -172,7 +173,7 @@ export async function moveMouseAway(page) {
  * @returns {Promise<import('playwright-core').ElementHandle|null>} 元素句柄，失败返回 null
  */
 export async function scrollToElement(page, selectorOrLocator, options = {}) {
-    const { timeout = 30000 } = options;
+    const { timeout = TIMEOUTS.ELEMENT_SCROLL } = options;
     try {
         const isLocator = typeof selectorOrLocator !== 'string';
         let element;
@@ -209,7 +210,7 @@ export async function scrollToElement(page, selectorOrLocator, options = {}) {
  * @returns {Promise<import('playwright-core').Response>} 响应对象
  */
 export async function waitApiResponse(page, options = {}) {
-    const { urlMatch, urlContains, method = 'POST', timeout = 120000, errorText } = options;
+    const { urlMatch, urlContains, method = 'POST', timeout = TIMEOUTS.API_RESPONSE, errorText } = options;
 
     if (!isPageValid(page)) {
         throw new Error('PAGE_INVALID');

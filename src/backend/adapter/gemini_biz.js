@@ -105,7 +105,12 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const targetUrl = config.backend?.adapter?.gemini_biz?.entryUrl || config.backend?.geminiBiz?.entryUrl;
 
         if (!targetUrl) {
-            throw new Error('GeminiBiz backend missing entry URL');
+            throw new Error('未填写 gemini_biz 适配器的 entry URL');
+        }
+
+        // 验证 URL 域名
+        if (!targetUrl.includes('business.gemini.google')) {
+            throw new Error('无效的 Gemini Business URL，必须包含 business.gemini.google 域名');
         }
 
         // 开启新对话 - 先等待可能正在进行的登录处理完成
@@ -129,7 +134,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                     // 只追踪 widgetAddContextFile 请求，每个请求代表一张图片上传
                     return response.status() === 200 && url.includes('global/widgetAddContextFile');
                 }
-            });
+            }, meta);
             logger.info('适配器', '图片上传完成', meta);
         }
 

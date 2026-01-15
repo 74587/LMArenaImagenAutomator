@@ -74,7 +74,11 @@ export class Worker {
             navigationHandler = handlers.length > 0
                 ? async (page) => {
                     for (const handler of handlers) {
-                        try { await handler(page); } catch (e) { /* ignore */ }
+                        try {
+                            await handler(page);
+                        } catch (e) {
+                            logger.debug('工作池', `导航处理器执行失败: ${e.message}`);
+                        }
                     }
                 }
                 : null;

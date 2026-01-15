@@ -142,3 +142,44 @@ export function getErrorStatus(code) {
 export function getErrorDetails(code) {
     return ERROR_DETAILS[code] || { message: '未知错误', status: 500 };
 }
+
+// ==========================================
+// 适配器层错误码（从 constants.js 统一到此处）
+// ==========================================
+
+/**
+ * 适配器错误码
+ * @readonly
+ */
+export const ADAPTER_ERRORS = {
+    /** 页面已关闭 */
+    PAGE_CLOSED: 'PAGE_CLOSED',
+
+    /** 页面崩溃 */
+    PAGE_CRASHED: 'PAGE_CRASHED',
+
+    /** 页面状态无效 */
+    PAGE_INVALID: 'PAGE_INVALID',
+
+    /** 网络错误 */
+    NETWORK_ERROR: 'NETWORK_ERROR',
+
+    /** 超时错误 */
+    TIMEOUT_ERROR: 'TIMEOUT_ERROR',
+
+    /** HTTP 错误 */
+    HTTP_ERROR: 'HTTP_ERROR',
+
+    /** 限流 */
+    RATE_LIMITED: 'RATE_LIMITED',
+
+    /** 需要验证码 */
+    CAPTCHA_REQUIRED: 'CAPTCHA_REQUIRED',
+
+    /** 需要登录 */
+    AUTH_REQUIRED: 'AUTH_REQUIRED',
+
+    /** 内容被阻止 (API/页面检测到错误关键词) */
+    CONTENT_BLOCKED: 'CONTENT_BLOCKED',
+};
+

@@ -23,6 +23,7 @@ export class PoolManager {
         this.strategy = config.backend.pool.strategy || 'least_busy';
         this.strategySelector = createStrategySelector(this.strategy);
         this.initialized = false;
+        this.roundRobinIndex = 0;
     }
 
     /**

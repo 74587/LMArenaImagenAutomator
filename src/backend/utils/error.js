@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../../utils/logger.js';
-import { ADAPTER_ERRORS } from '../../utils/constants.js';
+import { ADAPTER_ERRORS } from '../../server/errors.js';
 
 // ==========================================
 // 可重试判定

@@ -60,7 +60,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                         url.includes('bytedanceapi.com') &&
                         url.includes('Action=CommitImageUpload');
                 }
-            });
+            }, meta);
 
             logger.info('适配器', '图片上传完成', meta);
         }

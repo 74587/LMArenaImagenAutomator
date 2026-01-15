@@ -152,7 +152,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
                 // 5.2 点击 upload 按钮并选择文件（不等待上传完成）
                 const uploadBtn = page.getByRole('button', { name: /^upload/ });
-                await uploadFilesViaChooser(page, uploadBtn, [imgPath]);
+                await uploadFilesViaChooser(page, uploadBtn, [imgPath], {}, meta);
 
                 // 5.3 先启动上传监听，再点击 crop 按钮
                 const uploadResponsePromise = waitApiResponse(page, {

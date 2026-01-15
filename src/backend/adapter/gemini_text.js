@@ -57,7 +57,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                         url.includes('google.com/upload/') &&
                         url.includes('upload_id=');
                 }
-            });
+            }, meta);
             logger.info('适配器', '图片上传完成', meta);
         }
 

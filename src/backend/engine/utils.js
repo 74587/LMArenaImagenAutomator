@@ -22,6 +22,7 @@
 
 import path from 'path';
 import { logger } from '../../utils/logger.js';
+import { TIMEOUTS } from '../../utils/constants.js';
 
 /**
  * 生成指定范围内的随机数
@@ -153,6 +154,69 @@ export function getHumanClickPoint(box, type = 'random') {
 }
 
 /**
+ * 等待元素布局稳定（基于 requestAnimationFrame）
+ * @param {import('playwright-core').Locator} locator - 建议直接传 Locator
+ * @param {number} stableFrames - 需要连续稳定的帧数，建议提高到 10 (约160ms)
+ * @param {number} timeout - 总超时时间 (ms)
+ */
+async function waitForElementStable(locator, stableFrames = 10, timeout = 2000) {
+    const element = await locator.elementHandle();
+    if (!element) return;
+
+    try {
+        await element.evaluate((targetEl, { stableFrames, timeout }) => {
+            return new Promise((resolve) => {
+                let lastRect = targetEl.getBoundingClientRect();
+                let consecutiveStable = 0;
+                const startTime = performance.now();
+
+                function check() {
+                    // 1. 超时检查：如果超过总时间，不再等待直接返回，防止死循环
+                    if (performance.now() - startTime > timeout) {
+                        resolve();
+                        return;
+                    }
+
+                    const rect = targetEl.getBoundingClientRect();
+
+                    // 检查位置和大小是否变化 (容差 1px)
+                    const isSame =
+                        Math.abs(rect.x - lastRect.x) < 1 &&
+                        Math.abs(rect.y - lastRect.y) < 1 &&
+                        Math.abs(rect.width - lastRect.width) < 1 &&
+                        Math.abs(rect.height - lastRect.height) < 1;
+
+                    if (isSame) {
+                        consecutiveStable++;
+                        // 2. 只有连续 N 帧都不动才确定
+                        if (consecutiveStable >= stableFrames) {
+                            resolve();
+                            return;
+                        }
+                    } else {
+                        // 只要动了一次，计数器归零，重新开始计数
+                        consecutiveStable = 0;
+                        lastRect = rect;
+                    }
+
+                    requestAnimationFrame(check);
+                }
+
+                // 3. 稍微延迟启动检测，给响应式框架留启动时间
+                setTimeout(() => {
+                    requestAnimationFrame(check);
+                }, 50);
+            });
+        }, { stableFrames, timeout });
+    } catch (e) {
+        console.log('Stability check failed, continuing anyway:', e);
+    } finally {
+        // 清理 handle，防止内存泄漏
+        await element.dispose();
+    }
+}
+
+/**
  * 安全点击元素 (包含滚动、拟人化移动和点击)
  * 支持 CSS selector、ElementHandle 和 Locator 三种输入
  * @param {import('playwright-core').Page} page - Playwright 页面对象
@@ -161,12 +225,13 @@ export function getHumanClickPoint(box, type = 'random') {
  * @param {string} [options.bias='random'] - 偏移偏好: 'input' 或 'random'
  * @param {number} [options.clickCount=1] - 点击次数: 1=单击, 2=双击
  * @param {number} [options.timeout=15000] - 超时时间 (毫秒)
+ * @param {boolean} [options.waitStable=false] - 是否等待元素布局稳定后再点击
  * @returns {Promise<void>}
  */
 export async function safeClick(page, target, options = {}) {
     const clickCount = options.clickCount || 1;
-    const timeout = options.timeout || 15000;
-    const maxRetries = 1;
+    const timeout = options.timeout || TIMEOUTS.ELEMENT_CLICK;
+    const waitStable = options.waitStable !== false; // 默认 true
 
     const doClick = async () => {
         let el;
@@ -189,6 +254,11 @@ export async function safeClick(page, target, options = {}) {
         // 确保元素在可视区域内
         await el.scrollIntoViewIfNeeded().catch(() => { });
 
+        // 如果开启了布局稳定等待，等待元素位置稳定
+        if (waitStable) {
+            await waitForElementStable(page, el);
+        }
+
         // 使用 ghost-cursor 点击
         if (page.cursor) {
             const box = await el.boundingBox();
@@ -207,32 +277,24 @@ export async function safeClick(page, target, options = {}) {
         await el.click({ clickCount });
     };
 
-    // 带超时和重试的执行
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            await Promise.race([
-                doClick(),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('CLICK_TIMEOUT')), timeout)
-                )
-            ]);
-            return; // 成功则退出
-        } catch (err) {
-            const isTimeout = err.message === 'CLICK_TIMEOUT';
-            const isLastAttempt = attempt === maxRetries;
+    // 带超时的执行（移除了重试机制）
+    let timeoutId;
+    try {
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error('CLICK_TIMEOUT')), timeout);
+        });
 
-            if (isLastAttempt) {
-                // 最后一次尝试失败，抛出明确的错误
-                const selector = typeof target === 'string' ? target : '元素';
-                throw new Error(`点击操作失败 (${selector}): ${isTimeout ? '超时' : err.message}`);
-            }
-
-            // 非最后一次，记录日志并重试
-            logger.warn('浏览器', `点击操作${isTimeout ? '超时' : '失败'}，正在重试... (${attempt + 1}/${maxRetries + 1})`);
-            await sleep(300, 500);
-        }
+        await Promise.race([
+            doClick().finally(() => clearTimeout(timeoutId)),
+            timeoutPromise
+        ]);
+    } catch (err) {
+        clearTimeout(timeoutId);
+        const selector = typeof target === 'string' ? target : '元素';
+        throw new Error(`点击操作失败 (${selector}): ${err.message}`);
     }
 }
+
 
 /**
  * 安全滚动 (包含拟人化移动和滚轮滚动)
@@ -432,11 +494,12 @@ async function findAllFileInputs(page) {
  * @param {string[]} filePaths - 图片文件路径数组
  * @param {Object} [options] - 可选配置
  * @param {Function} [options.uploadValidator] - 自定义上传确认回调函数, 接收 response 参数
+ * @param {Object} [meta] - 元数据 (用于日志)
  * @returns {Promise<void>}
  */
-export async function pasteImages(page, target, filePaths, options = {}) {
+export async function pasteImages(page, target, filePaths, options = {}, meta = {}) {
     if (!filePaths || filePaths.length === 0) return;
-    logger.info('浏览器', `正在处理 ${filePaths.length} 张图片...`);
+    logger.info('浏览器', `正在处理 ${filePaths.length} 张图片...`, meta);
 
     // 1. 拟人化: 先点击一下目标区域 (让后台看起来像是用户聚焦了输入框)
     await safeClick(page, target, { bias: 'input' });
@@ -450,7 +513,7 @@ export async function pasteImages(page, target, filePaths, options = {}) {
             throw new Error('未找到任何 input[type="file"] 控件,无法上传');
         }
 
-        logger.info('浏览器', `找到 ${fileInputs.length} 个文件输入框,尝试上传...`);
+        logger.info('浏览器', `找到 ${fileInputs.length} 个文件输入框,尝试上传...`, meta);
 
         // LMArena 通常只有一个用于聊天的上传控件，或者我们尝试第一个可用的
         // 如果有多个，通常最后一个是当前对话框的，或者我们可以尝试全部 (比较暴力但有效)
@@ -485,14 +548,14 @@ export async function pasteImages(page, target, filePaths, options = {}) {
             const uploadPromise = new Promise((resolve) => {
                 const timeout = setTimeout(() => {
                     cleanup();
-                    logger.warn('浏览器', `图片上传等待超时 (已确认: ${validatedCount}/${expectedUploads})`);
+                    logger.warn('浏览器', `图片上传等待超时 (已确认: ${validatedCount}/${expectedUploads})`, meta);
                     resolve();
                 }, 60000); // 60s 超时
 
                 const onResponse = (response) => {
                     if (options.uploadValidator(response)) {
                         validatedCount++;
-                        logger.info('浏览器', `图片上传进度: ${validatedCount}/${expectedUploads}`);
+                        logger.info('浏览器', `图片上传进度: ${validatedCount}/${expectedUploads}`, meta);
                         if (validatedCount >= expectedUploads) {
                             cleanup();
                             resolve();
@@ -508,12 +571,12 @@ export async function pasteImages(page, target, filePaths, options = {}) {
                 page.on('response', onResponse);
             });
 
-            logger.info('浏览器', `已提交图片, 正在等待上传确认...`);
+            logger.info('浏览器', `已提交图片, 正在等待上传确认...`, meta);
             await uploadPromise;
-            logger.info('浏览器', `所有图片上传完成`);
+            logger.info('浏览器', `所有图片上传完成`, meta);
         } else {
             // 默认行为: 等待上传预览出现
-            logger.info('浏览器', `已提交图片, 等待预览生成...`);
+            logger.info('浏览器', `已提交图片, 等待预览生成...`, meta);
             await sleep(500, 1000);
         }
 
@@ -532,9 +595,10 @@ export async function pasteImages(page, target, filePaths, options = {}) {
  * @param {Function} [options.uploadValidator] - 自定义上传确认回调函数, 接收 response 参数，返回 true 表示该响应代表一次成功上传
  * @param {number} [options.timeout=60000] - 上传超时时间 (毫秒)
  * @param {string} [options.clickAction='click'] - 点击动作: 'click' 或 'dblclick'
+ * @param {Object} [meta] - 元数据 (用于日志)
  * @returns {Promise<void>}
  */
-export async function uploadFilesViaChooser(page, triggerTarget, filePaths, options = {}) {
+export async function uploadFilesViaChooser(page, triggerTarget, filePaths, options = {}, meta = {}) {
     if (!filePaths || filePaths.length === 0) return;
 
     const timeout = options.timeout || 60000;
@@ -542,7 +606,7 @@ export async function uploadFilesViaChooser(page, triggerTarget, filePaths, opti
     const expectedUploads = filePaths.length;
     let uploadedCount = 0;
 
-    logger.info('浏览器', `正在处理 ${filePaths.length} 张图片 (filechooser 模式)...`);
+    logger.info('浏览器', `正在处理 ${filePaths.length} 张图片 (filechooser 模式)...`, meta);
 
     // 设置上传确认监听
     const uploadPromise = new Promise((resolve) => {
@@ -554,14 +618,14 @@ export async function uploadFilesViaChooser(page, triggerTarget, filePaths, opti
 
         const timeoutId = setTimeout(() => {
             cleanup();
-            logger.warn('浏览器', `图片上传等待超时 (已确认: ${uploadedCount}/${expectedUploads})`);
+            logger.warn('浏览器', `图片上传等待超时 (已确认: ${uploadedCount}/${expectedUploads})`, meta);
             resolve();
         }, timeout);
 
         const onResponse = (response) => {
             if (options.uploadValidator(response)) {
                 uploadedCount++;
-                logger.info('浏览器', `图片上传进度: ${uploadedCount}/${expectedUploads}`);
+                logger.info('浏览器', `图片上传进度: ${uploadedCount}/${expectedUploads}`, meta);
                 if (uploadedCount >= expectedUploads) {
                     cleanup();
                     resolve();
@@ -592,7 +656,7 @@ export async function uploadFilesViaChooser(page, triggerTarget, filePaths, opti
     // 等待上传完成（如果有验证器）
     if (options.uploadValidator) {
         await uploadPromise;
-        logger.info('浏览器', '所有图片上传完成');
+        logger.info('浏览器', '所有图片上传完成', meta);
     }
 }
 

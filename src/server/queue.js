@@ -77,9 +77,13 @@ export function createQueueManager(queueConfig, callbacks) {
      */
     async function cleanupTask(task) {
         if (task?.imagePaths) {
-            const fs = await import('fs');
+            const fs = await import('fs/promises');
             for (const p of task.imagePaths) {
-                try { fs.unlinkSync(p); } catch (e) { /* ignore */ }
+                try {
+                    await fs.unlink(p);
+                } catch (e) {
+                    logger.debug('服务器', `临时文件清理失败: ${p}`);
+                }
             }
         }
     }
