@@ -155,12 +155,11 @@ export function getHumanClickPoint(box, type = 'random') {
 
 /**
  * 等待元素布局稳定（基于 requestAnimationFrame）
- * @param {import('playwright-core').Locator} locator - 建议直接传 Locator
+ * @param {import('playwright-core').ElementHandle} element - 元素句柄
  * @param {number} stableFrames - 需要连续稳定的帧数，建议提高到 10 (约160ms)
  * @param {number} timeout - 总超时时间 (ms)
  */
-async function waitForElementStable(locator, stableFrames = 10, timeout = 2000) {
-    const element = await locator.elementHandle();
+async function waitForElementStable(element, stableFrames = 10, timeout = 2000) {
     if (!element) return;
 
     try {
@@ -209,10 +208,7 @@ async function waitForElementStable(locator, stableFrames = 10, timeout = 2000) 
             });
         }, { stableFrames, timeout });
     } catch (e) {
-        console.log('Stability check failed, continuing anyway:', e);
-    } finally {
-        // 清理 handle，防止内存泄漏
-        await element.dispose();
+        // 忽略错误，继续执行
     }
 }
 
@@ -256,7 +252,7 @@ export async function safeClick(page, target, options = {}) {
 
         // 如果开启了布局稳定等待，等待元素位置稳定
         if (waitStable) {
-            await waitForElementStable(page, el);
+            await waitForElementStable(el);
         }
 
         // 使用 ghost-cursor 点击
