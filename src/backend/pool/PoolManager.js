@@ -104,12 +104,17 @@ export class PoolManager {
 
                     logger.debug('工作池', `[${worker.name}] 将与其他 Worker 共享浏览器 (${worker.userDataDir})`);
                     await worker.init(existing.browser);
+
+                    // 建立共享关系：设置所有者引用，并添加到所有者的共享列表
+                    worker._browserOwner = existing.ownerWorker;
+                    existing.ownerWorker._sharedWorkers.push(worker);
                 } else {
                     await worker.init();
                     browserMap.set(worker.userDataDir, {
                         browser: worker.browser,
                         proxyConfig: worker.proxyConfig,
-                        firstWorkerName: worker.name
+                        firstWorkerName: worker.name,
+                        ownerWorker: worker  // 保存所有者 Worker 引用
                     });
                 }
 

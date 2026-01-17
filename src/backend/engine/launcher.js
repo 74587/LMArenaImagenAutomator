@@ -331,11 +331,12 @@ export async function initBrowserBase(config, options = {}) {
     // 注册清理处理器
     registerCleanupHandlers();
 
-    // 注册断开连接事件
+    // 注册断开连接事件（不再自动退出进程，由 Worker 决定后续行为）
     context.on('close', async () => {
         logger.warn('浏览器', `[${markLabel}] 浏览器已断开连接`);
-        await cleanup();
-        process.exit(0);
+        // 清理全局状态，但不退出进程
+        globalContext = null;
+        globalBrowserProcess = null;
     });
 
     // 获取或创建 Page
