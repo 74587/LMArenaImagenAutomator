@@ -11,8 +11,7 @@
 import { sleep } from '../engine/utils.js';
 import {
     gotoWithCheck,
-    normalizePageError,
-    moveMouseAway,
+    normalizePageError
 } from '../utils/index.js';
 import { clickTurnstile } from '../utils/CloudflareBypass.js';
 import { logger } from '../../utils/logger.js';
@@ -138,18 +137,16 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const { url, type } = modelConfig;
 
         // 根据模型 ID 和类型分发处理
-        if (modelId === 'cloudflare-turnstile') {
-            // Turnstile 验证特殊处理
-            return await handleTurnstile(page, meta);
-        } else if (modelId === 'ping0') {
-            // ping0.cc 需要 Cloudflare 验证
-            return await handlePing0(page, url, meta);
-        } else if (type === 'text') {
-            // text 类型返回页面文本
-            return await handleTextPage(page, url, meta);
-        } else {
-            // 其他 image 类型截屏返回
-            return await handleImagePage(page, url, meta);
+        switch (modelId) {
+            case 'cloudflare-turnstile':
+                return await handleTurnstile(page, meta);
+            case 'ping0':
+                return await handlePing0(page, url, meta);
+            default:
+                // 根据类型分发
+                return type === 'text'
+                    ? await handleTextPage(page, url, meta)
+                    : await handleImagePage(page, url, meta);
         }
 
     } catch (err) {
@@ -158,9 +155,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         logger.error('适配器', '任务失败', { ...meta, error: err.message });
         return { error: `任务失败: ${err.message}` };
-    } finally {
-        await moveMouseAway(page);
-    }
+    } finally { }
 }
 
 /**

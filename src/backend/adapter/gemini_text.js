@@ -11,7 +11,6 @@ import {
 import {
     normalizePageError,
     normalizeHttpError,
-    moveMouseAway,
     waitForInput,
     gotoWithCheck,
     waitApiResponse
@@ -205,9 +204,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         logger.error('适配器', '生成任务失败', { ...meta, error: err.message });
         return { error: `生成任务失败: ${err.message}` };
-    } finally {
-        await moveMouseAway(page);
-    }
+    } finally { }
 }
 
 /**

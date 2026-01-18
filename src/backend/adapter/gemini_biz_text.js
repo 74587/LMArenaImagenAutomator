@@ -12,7 +12,6 @@ import {
     normalizePageError,
     normalizeHttpError,
     waitApiResponse,
-    moveMouseAway,
     waitForPageAuth,
     lockPageAuth,
     unlockPageAuth,
@@ -286,8 +285,6 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     } finally {
         // 清理拦截器
         await page.unroute('**/*').catch(() => { });
-        // 任务结束，将鼠标移至安全区域
-        await moveMouseAway(page);
     }
 }
 

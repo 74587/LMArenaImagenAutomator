@@ -12,7 +12,6 @@ import {
     normalizePageError,
     normalizeHttpError,
     waitApiResponse,
-    moveMouseAway,
     waitForPageAuth,
     lockPageAuth,
     unlockPageAuth,
@@ -338,10 +337,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         logger.error('适配器', '生成任务失败', { ...meta, error: err.message });
         return { error: `生成任务失败: ${err.message}` };
-    } finally {
-        // 任务结束，将鼠标移至安全区域
-        await moveMouseAway(page);
-    }
+    } finally { }
 }
 
 /**

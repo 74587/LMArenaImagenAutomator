@@ -7,7 +7,6 @@
  *   - waitForPageAuth/lockPageAuth/unlockPageAuth: 页面认证锁机制
  *   - waitForInput: 等待输入框出现（自动等待认证完成）
  *   - gotoWithCheck: 导航到 URL 并检测 HTTP 错误
- *   - moveMouseAway: 任务完成后移开鼠标
  *   - waitApiResponse: 等待 API 响应（带页面关闭监听）
  * 
  * - 错误处理 (error.js):
@@ -29,7 +28,6 @@ export {
     waitForInput,
     gotoWithCheck,
     tryGotoWithCheck,
-    moveMouseAway,
     waitApiResponse,
     scrollToElement,
 } from './page.js';

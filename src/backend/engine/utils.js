@@ -637,8 +637,8 @@ export async function uploadFilesViaChooser(page, triggerTarget, filePaths, opti
         page.on('response', onResponse);
     });
 
-    // 设置等待 filechooser 事件（在点击之前）
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    // 设置等待 filechooser 事件（在点击之前，带超时保护）
+    const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 30000 });
 
     // 点击触发按钮（支持单击或双击）
     const clickCount = clickAction === 'dblclick' ? 2 : 1;

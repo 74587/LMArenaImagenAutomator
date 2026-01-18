@@ -147,24 +147,6 @@ export async function tryGotoWithCheck(page, url, options = {}) {
 }
 
 /**
- * 任务完成后移开鼠标（拟人化行为）
- * @param {import('playwright-core').Page} page - Playwright 页面对象
- */
-export async function moveMouseAway(page) {
-    if (!page.cursor) return;
-
-    try {
-        const vp = await getRealViewport(page);
-        await page.cursor.moveTo({
-            x: clamp(vp.safeWidth * random(0.85, 0.95), 0, vp.safeWidth),
-            y: clamp(vp.height * random(0.3, 0.7), 0, vp.safeHeight)
-        });
-    } catch (e) {
-        // 忽略鼠标移动失败
-    }
-}
-
-/**
  * 等待元素出现并滚动到可视范围
  * @param {import('playwright-core').Page} page - Playwright 页面对象
  * @param {string|import('playwright-core').Locator} selectorOrLocator - CSS 选择器或 Locator 对象
