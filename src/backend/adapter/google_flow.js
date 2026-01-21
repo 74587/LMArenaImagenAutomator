@@ -149,6 +149,20 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 await addBtn.waitFor({ state: 'visible', timeout: 30000 });
                 await safeClick(page, addBtn, { bias: 'button' });
 
+                // 5.1.1 清理已有图片，只保留上传按钮，并调整弹出框样式
+                await page.evaluate(() => {
+                    const grid = document.querySelector('[class*="virtuoso-grid-list"]');
+                    if (grid) {
+                        const children = Array.from(grid.children);
+                        children.slice(1).forEach(child => child.remove());
+                    }
+                    const popper = document.querySelector('[data-radix-popper-content-wrapper]');
+                    if (popper) {
+                        popper.style.height = '335px';
+                        popper.style.transform = 'translate(0px, -391px)';
+                    }
+                });
+
                 // 5.2 点击 upload 按钮并选择文件（不等待上传完成）
                 const uploadBtn = page.getByRole('button', { name: /^upload/ });
                 await uploadFilesViaChooser(page, uploadBtn, [imgPath], {}, meta);

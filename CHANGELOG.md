@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.4.9] - 2026-01-22
 
+### 🔄 Changed
+- **超时优化**
+  - 等待生成结果的超时时间不再一刀切，根据上游 SEE 动态重置超时计时器
+
 ### 🐛 Fixed
 - **LMA 超时问题**
   - 修复 LMArena 因模型选择界面更新导致的点击超时
+- **Flow 图片上传**
+  - 修复 Google Flow 因历史上传的图片过多导致上传按钮被顶到不可见区域造成点击超时
 - **提示词输入**
   - 长提示词粘贴之前模拟输入时将回车当换行符使用导致误触发送提示词
 

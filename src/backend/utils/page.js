@@ -182,17 +182,26 @@ export async function scrollToElement(page, selectorOrLocator, options = {}) {
 
 /**
  * 等待 API 响应 (带页面关闭监听和错误关键词检测)
+ * 对于流式响应，每次收到数据时会重置超时计时器
  * @param {import('playwright-core').Page} page - Playwright 页面对象
  * @param {object} options - 等待选项
  * @param {string} options.urlMatch - URL 匹配字符串
  * @param {string|string[]} [options.urlContains] - URL 必须额外包含的字符串（可选，可以是数组）
  * @param {string} [options.method='POST'] - HTTP 方法
- * @param {number} [options.timeout=120000] - 超时时间（毫秒）
+ * @param {number} [options.timeout=120000] - 超时时间（毫秒），流式响应收到数据时会重置
  * @param {string|string[]} [options.errorText] - 错误关键词，页面 UI 或 API 响应体中出现时立即停止并返回错误
+ * @param {object} [options.meta={}] - 日志元数据
  * @returns {Promise<import('playwright-core').Response>} 响应对象
  */
 export async function waitApiResponse(page, options = {}) {
-    const { urlMatch, urlContains, method = 'POST', timeout = TIMEOUTS.API_RESPONSE, errorText } = options;
+    const {
+        urlMatch,
+        urlContains,
+        method = 'POST',
+        timeout = TIMEOUTS.API_RESPONSE,
+        errorText,
+        meta = {}
+    } = options;
 
     if (!isPageValid(page)) {
         throw new Error('PAGE_INVALID');
@@ -218,26 +227,93 @@ export async function waitApiResponse(page, options = {}) {
         }
     }
 
+    // 超时控制
+    let timerId = null;
+    let responseHandler = null;
+
+    const cleanup = () => {
+        if (timerId) clearTimeout(timerId);
+        if (responseHandler) page.off('response', responseHandler);
+        pageWatcher.cleanup();
+    };
+
     try {
-        const responsePromise = page.waitForResponse(
-            response => {
-                const url = response.url();
+        const responsePromise = new Promise((resolve, reject) => {
+            // 超时计时器（流式响应收到数据时会重置）
+            const resetTimer = () => {
+                if (timerId) clearTimeout(timerId);
+                timerId = setTimeout(() => {
+                    reject(new Error(`API_TIMEOUT: 等待响应超时 (${Math.round(timeout / 1000)}秒)`));
+                }, timeout);
+            };
+
+            // 启动初始超时
+            resetTimer();
+
+            // 监听响应
+            responseHandler = async (res) => {
+                const url = res.url();
 
                 // 基础匹配
-                if (!url.includes(urlMatch)) return false;
+                if (!url.includes(urlMatch)) return;
 
                 // 额外的 URL 包含检查
                 if (urlContains) {
                     const containsArray = Array.isArray(urlContains) ? urlContains : [urlContains];
-                    if (!containsArray.every(str => url.includes(str))) return false;
+                    if (!containsArray.every(str => url.includes(str))) return;
                 }
 
                 // 方法和状态检查
-                return response.request().method() === method &&
-                    (response.status() === 200 || response.status() >= 400);
-            },
-            { timeout }
-        );
+                const reqMethod = res.request().method();
+                const status = res.status();
+                if (reqMethod !== method || (status !== 200 && status < 400)) return;
+
+                // 匹配成功，移除监听器（只处理第一个匹配的响应）
+                page.off('response', responseHandler);
+                responseHandler = null;
+
+                // 检查是否为流式响应
+                const contentType = res.headers()['content-type'] || '';
+                const isStreaming = contentType.includes('text/event-stream') ||
+                    contentType.includes('application/stream') ||
+                    contentType.includes('text/plain');
+
+                if (isStreaming) {
+                    // 流式响应：取消固定超时，依赖 requestfinished 事件判断完成
+                    // 因为流式响应可能持续很长时间，固定超时不适用
+                    if (timerId) {
+                        clearTimeout(timerId);
+                        timerId = null;
+                    }
+
+                    const request = res.request();
+
+                    const finishedHandler = (req) => {
+                        if (req === request) {
+                            page.off('requestfinished', finishedHandler);
+                            page.off('requestfailed', failedHandler);
+                            resolve(res);
+                        }
+                    };
+
+                    const failedHandler = (req) => {
+                        if (req === request) {
+                            page.off('requestfinished', finishedHandler);
+                            page.off('requestfailed', failedHandler);
+                            reject(new Error('NETWORK_FAILED: 流式请求失败'));
+                        }
+                    };
+
+                    page.on('requestfinished', finishedHandler);
+                    page.on('requestfailed', failedHandler);
+                } else {
+                    // 非流式响应，直接返回
+                    resolve(res);
+                }
+            };
+
+            page.on('response', responseHandler);
+        });
 
         const promises = [responsePromise, pageWatcher.promise];
         if (uiErrorPromise) promises.push(uiErrorPromise);
@@ -247,7 +323,6 @@ export async function waitApiResponse(page, options = {}) {
         // API 响应体错误关键词检测 (在返回前同步检查)
         if (patterns.length > 0) {
             try {
-                // 使用 body() 获取 Buffer，避免 text() 的某些内部状态问题
                 const bodyBuffer = await response.body();
                 const body = bodyBuffer.toString('utf-8');
                 for (const pattern of patterns) {
@@ -264,20 +339,18 @@ export async function waitApiResponse(page, options = {}) {
                 return cachedResponse;
             } catch (e) {
                 if (e.message.startsWith('API_ERROR_DETECTED')) throw e;
-                // 如果读取响应体失败，直接返回原始 response
             }
         }
 
         return response;
     } catch (e) {
         // 检测超时错误，转换为标准错误类型
-        if (e.name === 'TimeoutError' || e.message?.includes('Timeout')) {
-            const timeoutSec = Math.round(timeout / 1000);
-            throw new Error(`API_TIMEOUT: 等待响应超时 (${timeoutSec}秒)`);
+        if (e.name === 'TimeoutError' || e.message?.includes('TIMEOUT')) {
+            throw new Error(`API_TIMEOUT: ${e.message}`);
         }
-        // 其他错误直接重新抛出（如 PAGE_CLOSED, PAGE_CRASHED 等）
         throw e;
     } finally {
-        pageWatcher.cleanup();
+        cleanup();
     }
 }
+
