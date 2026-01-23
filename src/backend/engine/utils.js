@@ -270,7 +270,8 @@ export async function safeClick(page, target, options = {}) {
             if (box) {
                 const { x, y } = getHumanClickPoint(box, options.bias || 'random');
                 logger.debug('浏览器', `[safeClick] 移动鼠标到 (${x.toFixed(0)}, ${y.toFixed(0)})...`);
-                await page.cursor.moveTo({ x, y });
+                const cursorSpeed = options.cursorSpeed ?? 40;
+                await page.cursor.moveTo({ x, y }, { moveSpeed: cursorSpeed });
                 logger.debug('浏览器', `[safeClick] 执行点击...`);
                 await page.mouse.click(x, y, { clickCount });
                 return;

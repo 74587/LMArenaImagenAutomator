@@ -108,7 +108,7 @@ export async function gotoWithCheck(page, url, options = {}) {
     const { timeout = TIMEOUTS.NAVIGATION } = options;
     try {
         const response = await page.goto(url, {
-            waitUntil: 'domcontentloaded',
+            waitUntil: 'load',
             timeout
         });
         if (!response) {

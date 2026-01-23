@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Token 留空问题**
   - 修复 WebUI 留空Token后无法重启的问题（允许 Token 留空）
 
+### 🔄 Changed
+- **鼠标轨迹**
+  - 增快鼠标移动速度
+
 ### ❌ Removed
 - **热门模型ID**
   - 竞技场删除了 gemini-3-pro-image-preview-2k，因此项目同步删除
