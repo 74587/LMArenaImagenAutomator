@@ -83,6 +83,7 @@ export function getBrowserConfig() {
         path: browser.path || '',
         headless: browser.headless || false,
         fission: browser.fission !== false, // 默认 true
+        humanizeCursor: browser.humanizeCursor ?? true, // false | true | 'camou'
         cssInject: {
             animation: cssInject.animation || false,
             filter: cssInject.filter || false,
@@ -112,6 +113,7 @@ export function saveBrowserConfig(data) {
     if (data.path !== undefined) config.browser.path = data.path;
     if (data.headless !== undefined) config.browser.headless = data.headless;
     if (data.fission !== undefined) config.browser.fission = data.fission;
+    if (data.humanizeCursor !== undefined) config.browser.humanizeCursor = data.humanizeCursor;
 
     // CSS 性能优化配置
     if (data.cssInject) {

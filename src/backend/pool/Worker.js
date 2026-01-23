@@ -116,7 +116,12 @@ export class Worker {
         this.browser = sharedBrowser;
         this.page = await sharedBrowser.newPage();
         this.page.authState = { isHandlingAuth: false };
-        this.page.cursor = createCursor(this.page);
+        const humanizeCursorMode = this.globalConfig?.browser?.humanizeCursor;
+        this.page._humanizeCursorMode = humanizeCursorMode;
+        // true 表示使用项目维护的 ghost-cursor
+        if (humanizeCursorMode === true) {
+            this.page.cursor = createCursor(this.page);
+        }
 
         // 保存参数用于重新初始化
         this._targetUrl = targetUrl;
@@ -165,7 +170,11 @@ export class Worker {
     async _recreatePage() {
         this.page = await this.browser.newPage();
         this.page.authState = { isHandlingAuth: false };
-        this.page.cursor = createCursor(this.page);
+        const humanizeCursorMode = this.globalConfig?.browser?.humanizeCursor;
+        this.page._humanizeCursorMode = humanizeCursorMode;
+        if (humanizeCursorMode === true) {
+            this.page.cursor = createCursor(this.page);
+        }
         await this._navigateToTarget(this._targetUrl || 'about:blank');
 
         if (this._navigationHandler) {
@@ -195,7 +204,11 @@ export class Worker {
         this.browser = base.context;
         this.page = base.page;
         this.page.authState = { isHandlingAuth: false };
-        this.page.cursor = createCursor(this.page);
+        const humanizeCursorMode = this.globalConfig?.browser?.humanizeCursor;
+        this.page._humanizeCursorMode = humanizeCursorMode;
+        if (humanizeCursorMode === true) {
+            this.page.cursor = createCursor(this.page);
+        }
 
         if (navigationHandler) {
             this.page.on('framenavigated', async () => {
@@ -244,7 +257,11 @@ export class Worker {
                             sharedWorker.browser = this.browser;
                             sharedWorker.page = await this.browser.newPage();
                             sharedWorker.page.authState = { isHandlingAuth: false };
-                            sharedWorker.page.cursor = createCursor(sharedWorker.page);
+                            const sharedCursorMode = this.globalConfig?.browser?.humanizeCursor;
+                            sharedWorker.page._humanizeCursorMode = sharedCursorMode;
+                            if (sharedCursorMode === true) {
+                                sharedWorker.page.cursor = createCursor(sharedWorker.page);
+                            }
                             await sharedWorker._navigateToTarget(sharedWorker._targetUrl || 'about:blank');
                             sharedWorker._registerPageCloseHandler();  // 重新注册标签页关闭处理器
                             sharedWorker.initialized = true;

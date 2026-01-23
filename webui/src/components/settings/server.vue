@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, reactive } from 'vue';
 import { useSettingsStore } from '@/stores/settings';
+import { Modal, message } from 'ant-design-vue';
 
 const settingsStore = useSettingsStore();
 
@@ -18,9 +19,34 @@ onMounted(async () => {
     Object.assign(formData, settingsStore.serverConfig);
 });
 
-// 保存设置
-const handleSave = async () => {
+// 实际保存逻辑
+const doSave = async () => {
     await settingsStore.saveServerConfig(formData);
+};
+
+// 保存设置 (带校验和确认弹窗)
+const handleSave = async () => {
+    // 前端校验：Token 长度在 1-9 之间时提示
+    if (formData.authToken && formData.authToken.length > 0 && formData.authToken.length < 10) {
+        message.error('鉴权 Token 如果设置则必须至少 10 个字符，或留空');
+        return;
+    }
+
+    // Token 留空时弹出确认框
+    if (!formData.authToken) {
+        Modal.confirm({
+            title: '安全警告',
+            content: '您正在将鉴权 Token 留空，这意味着 API 和 WebUI 将无需认证即可访问。请勿在公网环境中使用此配置！确定要继续吗？',
+            okText: '确定留空',
+            okType: 'danger',
+            cancelText: '取消',
+            onOk: doSave
+        });
+        return;
+    }
+
+    // 正常保存
+    await doSave();
 };
 </script>
 

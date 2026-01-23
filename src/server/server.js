@@ -58,11 +58,6 @@ const PORT = config.server?.port || 3000;
 /** @type {string} 认证令牌 */
 const AUTH_TOKEN = config.server?.auth;
 
-// 检测默认密钥
-if (AUTH_TOKEN === 'sk-change-me-to-your-secure-key') {
-    logger.warn('服务器', '检测到默认密钥！如果在公网环境下请修改默认密钥');
-}
-
 /** @type {string} 心跳模式 */
 const KEEPALIVE_MODE = config.server?.keepalive?.mode || 'comment';
 

@@ -22,12 +22,12 @@ export function validateServerConfig(data) {
         }
     }
 
-    // Auth Token 校验
+    // Auth Token 校验：允许留空，但非空时必须至少 10 个字符
     if (data.authToken !== undefined) {
         if (typeof data.authToken !== 'string') {
             errors.push('authToken 必须是字符串');
-        } else if (data.authToken.length < 10) {
-            errors.push('authToken 必须至少 10 个字符');
+        } else if (data.authToken.length > 0 && data.authToken.length < 10) {
+            errors.push('authToken 如果设置则必须至少 10 个字符，或留空');
         }
     }
 

@@ -61,9 +61,11 @@ export const useSettingsStore = defineStore('settings', {
                 return { success: true, data };
             } else {
                 console.error('Request failed:', res.status, data);
+                // 后端返回格式: { error: { message: "..." } } 或 { message: "..." }
+                const errorMessage = data.error?.message || data.message || `请求未成功: ${res.status} ${res.statusText}`;
                 Modal.error({
                     title: '保存失败',
-                    content: data.message || `请求未成功: ${res.status} ${res.statusText}`,
+                    content: errorMessage,
                     okText: '好的'
                 });
                 return { success: false, data };

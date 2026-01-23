@@ -9,6 +9,7 @@ const formData = reactive({
     path: '',
     headless: false,
     fission: true,
+    humanizeCursor: false, // false | true | 'camou'
     // CSS 性能优化
     cssAnimation: false,
     cssFilter: false,
@@ -29,6 +30,8 @@ onMounted(async () => {
     formData.path = cfg.path || '';
     formData.headless = cfg.headless || false;
     formData.fission = cfg.fission !== false; // 默认 true
+    // humanizeCursor: false=禁用, true=ghost-cursor, 'camou'=Camoufox内置
+    formData.humanizeCursor = cfg.humanizeCursor ?? false;
 
     // CSS 性能优化
     if (cfg.cssInject) {
@@ -59,6 +62,7 @@ const handleSave = async () => {
             font: formData.cssFont
         },
         fission: formData.fission,
+        humanizeCursor: formData.humanizeCursor,
         proxy: {
             enable: formData.proxyEnable,
             type: formData.proxyType,
@@ -118,6 +122,27 @@ const handleSave = async () => {
                         <span style="margin-left: 8px;">
                             {{ formData.fission ? '已启用' : '已关闭 (省内存)' }}
                         </span>
+                    </div>
+                </a-col>
+
+                <!-- 拟人鼠标轨迹 -->
+                <a-col :xs="24" :md="24">
+                    <div style="margin-bottom: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">拟人鼠标轨迹模式</div>
+                        <div style="font-size: 12px; color: #8c8c8c; margin-bottom: 8px;">
+                            控制鼠标点击的拟人化程度，影响性能和反爬检测风险
+                        </div>
+                        <a-segmented v-model:value="formData.humanizeCursor" block :options="[
+                            { label: '禁用 (性能最佳)', value: false },
+                            { label: 'Ghost-Cursor (更拟人)', value: true },
+                            { label: 'Camoufox内置 (平衡)', value: 'camou' }
+                        ]" />
+                        <div style="font-size: 11px; color: #8c8c8c; margin-top: 6px;">
+                            <span v-if="formData.humanizeCursor === false">使用 Playwright 原生点击，性能最好，但可能被检测为自动化</span>
+                            <span v-else-if="formData.humanizeCursor === true">使用项目优化的 ghost-cursor
+                                模拟人类鼠标轨迹（如不会点击正中心），性能稍差</span>
+                            <span v-else>使用 Camoufox 内置的 humanize 功能，性能与拟人化的平衡选择</span>
+                        </div>
                     </div>
                 </a-col>
             </a-row>
@@ -196,12 +221,8 @@ const handleSave = async () => {
 
                     <!-- CSS 性能优化 -->
                     <a-collapse-panel key="cssInject" header="CSS 性能优化注入">
-                        <a-alert
-                            message="⚡ 适用于无 GPU 的服务器环境，通过禁用网页特效来降低 CPU 压力"
-                            type="info"
-                            show-icon
-                            style="margin-bottom: 16px;"
-                        />
+                        <a-alert message="⚡ 适用于无 GPU 的服务器环境，通过禁用网页特效来降低 CPU 压力" type="info" show-icon
+                            style="margin-bottom: 16px;" />
 
                         <!-- 禁用动画 -->
                         <div style="margin-bottom: 16px; padding: 12px; background: #fafafa; border-radius: 6px;">
@@ -211,7 +232,10 @@ const handleSave = async () => {
                                     <div style="font-size: 12px; color: #8c8c8c;">
                                         移除 transition 和 animation，显著降低 CPU 持续占用
                                     </div>
-                                    <a-tag color="green" style="margin-top: 6px;">风险：极低</a-tag>
+                                    <a-tag color="green" style="margin-top: 6px;">风险：低</a-tag>
+                                    <span style="font-size: 11px; color: #389e0d; margin-left: 8px;">
+                                        几乎不影响浏览器指纹，但可能导致部分网页布局异常
+                                    </span>
                                 </div>
                                 <a-switch v-model:checked="formData.cssAnimation" />
                             </div>

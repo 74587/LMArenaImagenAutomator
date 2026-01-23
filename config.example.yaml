@@ -4,7 +4,7 @@ logLevel: info
 server:
   # 监听端口
   port: 3000
-  # 鉴权 API Token (可使用 npm run genkey 生成)
+  # 鉴权 API Token 至少为 10 个字符 (可使用 npm run genkey 生成)
   # 该配置会对 API 接口和 WebUI 生效
   auth: sk-change-me-to-your-secure-key
   # 流式请求心跳设置 (自动对 stream: true 的请求发送心跳防止超时)
@@ -64,9 +64,16 @@ backend:
             #   gemini                 (Google Gemini 图片、视频生成)
             #   gemini_text            (Google Gemini 文本生成)
             #   zai_is                 (zAI 图片生成)
+            #   zai_is_text            (zAI 文本生成)
             #   nanobananafree_ai      (NanoBananaFree 图片生成)
             #   zenmux_ai_text         (ZenMux 文本生成)
             #   chatgpt                (ChatGPT 图片生成)
+            #   chatgpt_text           (ChatGPT 文本生成)
+            #   sora                   (Sora 视频生成)
+            #   deepseek_text          (DeepSeek 文本生成)
+            #   doubao                 (豆包 图片生成)
+            #   doubao_text            (豆包 文本生成)
+            #   test                   (浏览器检测，仅供调试使用)
             type: lmarena              # 适配器类型
 
       # ------------------------------------------------
@@ -150,6 +157,12 @@ browser:
   # 是否启用无头模式
   headless: false
 
+  # 拟人鼠标轨迹模式
+  # - false:  禁用拟人轨迹，使用 Playwright 原生点击（性能最好，但会被自动化检测）
+  # - true:   使用项目优化的 ghost-cursor（更拟人化，如不会点击正中心，但性能稍差）
+  # - "camou": 使用 Camoufox 内置轨迹（性能与拟人化的平衡）
+  humanizeCursor: true
+
   # 站点隔离 (fission.autostart)
   # 开启保持 Firefox 默认开启状态
   # 关闭此项可显著降低内存占用，防止低配服务器崩溃
@@ -163,7 +176,7 @@ browser:
     # 禁用网页动画
     # 作用：移除 transition 和 animation
     # 收益：显著降低 CPU 持续占用
-    # 风险：极低。几乎不影响浏览器指纹
+    # 风险：低。几乎不影响浏览器指纹，但可能导致部分网页布局异常
     animation: false
 
     # 禁用滤镜和阴影

@@ -59,7 +59,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         await gotoWithCheck(page, TARGET_URL);
 
         // 1. 等待输入框加载
-        await waitForInput(page, textareaSelector, { click: false });
+        await waitForInput(page, textareaSelector, { click: true });
 
         // 2. 选择模型
         if (modelId) {
@@ -81,13 +81,22 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 document.execCommand('insertText', false, text);
             }, searchText);
 
-            // 等待下拉选项出现后再按回车
+            // 等待过滤完成：第一个选项包含目标模型的主 ID
+            // searchText 可能是 codeName（含括号说明），但过滤后的选项应该包含 modelId
             try {
-                await page.waitForSelector('[role="option"]', { timeout: 5000 });
+                await page.waitForFunction(
+                    (targetId) => {
+                        const firstOption = document.querySelector('[role="option"]');
+                        return firstOption && firstOption.textContent?.includes(targetId);
+                    },
+                    modelId,
+                    { timeout: 5000 }
+                );
             } catch {
-                // 超时也继续，可能选项已经存在
+                // 超时也继续，可能列表结构不同
+                logger.debug('适配器', `等待模型选项过滤超时，继续执行`, meta);
             }
-            await sleep(200, 300);
+            await sleep(300, 500);
             await page.keyboard.press('Enter');
         }
 
@@ -196,7 +205,6 @@ export const manifest = {
 
     // 模型列表
     models: [
-        { id: 'gemini-3-pro-image-preview-2k', imagePolicy: 'optional' },
         { id: 'gemini-3-pro-image-preview', codeName: 'gemini-3-pro-image-preview (nano-banana-pro)', imagePolicy: 'optional' },
         { id: 'hunyuan-image-3.0', imagePolicy: 'forbidden' },
         { id: 'vidu-q2-image', imagePolicy: 'optional' },

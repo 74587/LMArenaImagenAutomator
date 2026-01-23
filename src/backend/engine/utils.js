@@ -229,6 +229,9 @@ export async function safeClick(page, target, options = {}) {
     const timeout = options.timeout || TIMEOUTS.ELEMENT_CLICK;
     const waitStable = options.waitStable !== false; // 默认 true
     const selector = typeof target === 'string' ? target : '元素';
+    // humanizeCursorMode: false=禁用, true=ghost-cursor, "camou"=Camoufox内置
+    // 只有 true 时才使用 ghost-cursor，其他情况都使用原生点击
+    const useGhostCursor = page?._humanizeCursorMode === true && page?.cursor;
 
     const doClick = async () => {
         let el;
@@ -260,9 +263,8 @@ export async function safeClick(page, target, options = {}) {
             await waitForElementStable(el);
             logger.debug('浏览器', `[safeClick] 元素已稳定`);
         }
-
-        // 使用 ghost-cursor 点击
-        if (page.cursor) {
+        // 使用自维护 ghost-cursor 拟人鼠标轨迹 (仅当 humanizeCursor=true)
+        if (useGhostCursor) {
             const box = await el.boundingBox();
             logger.debug('浏览器', `[safeClick] boundingBox: ${JSON.stringify(box)}`);
             if (box) {
@@ -279,9 +281,11 @@ export async function safeClick(page, target, options = {}) {
             return;
         }
 
-        // 降级逻辑
-        logger.debug('浏览器', `[safeClick] 无 cursor，使用原生 click`);
-        await el.click({ clickCount });
+        // 使用原生点击 (humanizeCursor=false 或 "camou")
+        const mode = page?._humanizeCursorMode;
+        logger.debug('浏览器', `[safeClick] humanizeCursor=${mode} 使用原生点击`);
+        // force: true 跳过可操作性检查（遮挡检测等），避免在复杂页面卡住
+        await el.click({ clickCount, force: true });
     };
 
     // 带超时的执行（移除了重试机制）
@@ -673,8 +677,18 @@ export async function uploadFilesViaChooser(page, triggerTarget, filePaths, opti
     const clickCount = clickAction === 'dblclick' ? 2 : 1;
     await safeClick(page, triggerTarget, { bias: 'button', clickCount });
 
-    // 等待 filechooser 事件并设置文件
-    const fileChooser = await fileChooserPromise;
+    // 等待 filechooser 事件并设置文件（带异常保护）
+    let fileChooser;
+    try {
+        fileChooser = await fileChooserPromise;
+    } catch (e) {
+        // filechooser 超时通常意味着点击没有触发文件选择器
+        // 抛出可识别的错误让上层决定是否重试
+        const error = new Error(`文件选择器等待超时: ${e.message}`);
+        error.code = 'UPLOAD_FILECHOOSER_TIMEOUT';
+        throw error;
+    }
+
     await fileChooser.setFiles(filePaths);
     logger.debug('浏览器', '已通过 filechooser 提交文件');
 

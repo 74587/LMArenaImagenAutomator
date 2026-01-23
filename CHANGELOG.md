@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-01-23
+
+### ✨ Added
+- **鼠标轨迹**
+  - 增加三种鼠标轨迹选择（使用项目维护的、使用 Camoufox 内置、不适用拟人轨迹）
+
+### 🐛 Fixed
+- **Token 留空问题**
+  - 修复 WebUI 留空Token后无法重启的问题（允许 Token 留空）
+
+### ❌ Removed
+- **热门模型ID**
+  - 竞技场删除了 gemini-3-pro-image-preview-2k，因此项目同步删除
+
 ## [3.4.9] - 2026-01-22
 
 ### 🔄 Changed

@@ -295,6 +295,7 @@ export async function initBrowserBase(config, options = {}) {
         block_webrtc: true,
         exclude_addons: ['UBO'],
         geoip: true,
+        humanize: browserConfig.humanizeCursor === 'camou',
         config: {
             forceScopeAccess: true,
             // Canvas 抗指纹：注入固定噪点偏移

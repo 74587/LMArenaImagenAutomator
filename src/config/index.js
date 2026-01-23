@@ -231,11 +231,14 @@ export function loadConfig() {
     if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
         throw new Error(`server.port 必须是 1-65535 范围内的整数，当前值: ${port}`);
     }
+    // Auth Token 校验：允许留空，但输出安全警告
     if (!config.server.auth) {
-        throw new Error('配置文件缺少必需字段: server.auth');
-    }
-    if (typeof config.server.auth !== 'string' || config.server.auth.length < 10) {
-        throw new Error('server.auth 必须是至少 10 个字符的字符串 (建议使用 npm run genkey 生成)');
+        logger.warn('配置器', 'server.auth 未配置！API 和 WebUI 将无需认证即可访问！');
+        logger.warn('配置器', '请勿在公网环境中留空 auth，建议使用 npm run genkey 生成密钥');
+    } else if (config.server.auth === 'sk-change-me-to-your-secure-key') {
+        logger.warn('配置器', '检测到默认密钥！请勿在公网环境中使用默认密钥');
+    } else if (typeof config.server.auth !== 'string' || config.server.auth.length < 10) {
+        logger.warn('配置器', 'server.auth 长度少于 10 个字符，安全性较低，建议使用 npm run genkey 生成密钥');
     }
 
     // 设置 keepalive 配置默认值
@@ -247,6 +250,12 @@ export function loadConfig() {
             logger.warn('配置器', `无效的 keepalive.mode: ${config.server.keepalive.mode}，使用默认值 comment`);
             config.server.keepalive.mode = 'comment';
         }
+    }
+
+    // 设置 browser 配置默认值
+    if (!config.browser) config.browser = {};
+    if (config.browser.humanizeCursor === undefined) {
+        config.browser.humanizeCursor = true;
     }
 
     // 设置 Pool 配置默认值

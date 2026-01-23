@@ -30,6 +30,10 @@ export function createAuthMiddleware(authToken) {
      * @returns {boolean} 是否通过鉴权
      */
     return function authMiddleware(req, res) {
+        // 如果 authToken 为空，跳过认证（允许所有请求）
+        if (!authToken) {
+            return true;
+        }
         if (!checkAuth(req, authToken)) {
             sendApiError(res, { code: ERROR_CODES.UNAUTHORIZED });
             return false;
