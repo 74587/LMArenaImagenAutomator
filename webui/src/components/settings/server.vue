@@ -10,6 +10,7 @@ const formData = reactive({
     port: 5173,
     authToken: '',
     keepaliveMode: 'comment',
+    logLevel: 'info',
     queueBuffer: 2,
     imageLimit: 5
 });
@@ -88,6 +89,22 @@ const handleSave = async () => {
                         <a-select v-model:value="formData.keepaliveMode" style="width: 100%" placeholder="请选择心跳包类型">
                             <a-select-option value="comment">Comment - 注释格式</a-select-option>
                             <a-select-option value="content">Content - 内容格式</a-select-option>
+                        </a-select>
+                    </div>
+                </a-col>
+
+                <!-- 日志等级 -->
+                <a-col :xs="24" :md="12">
+                    <div style="margin-bottom: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">日志等级</div>
+                        <div style="font-size: 12px; color: #8c8c8c; margin-bottom: 8px;">
+                            设置服务器日志输出的详细程度
+                        </div>
+                        <a-select v-model:value="formData.logLevel" style="width: 100%" placeholder="请选择日志等级">
+                            <a-select-option value="debug">Debug - 调试日志</a-select-option>
+                            <a-select-option value="info">Info - 普通信息</a-select-option>
+                            <a-select-option value="warn">Warn - 警告信息</a-select-option>
+                            <a-select-option value="error">Error - 仅错误</a-select-option>
                         </a-select>
                     </div>
                 </a-col>

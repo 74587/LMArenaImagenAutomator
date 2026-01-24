@@ -38,6 +38,13 @@ export function validateServerConfig(data) {
         }
     }
 
+    // Log Level 校验
+    if (data.logLevel !== undefined) {
+        if (!['debug', 'info', 'warn', 'error'].includes(data.logLevel)) {
+            errors.push('logLevel 必须是 debug、info、warn 或 error');
+        }
+    }
+
     // Queue Buffer 校验
     if (data.queueBuffer !== undefined) {
         if (typeof data.queueBuffer !== 'number' || !Number.isInteger(data.queueBuffer)) {

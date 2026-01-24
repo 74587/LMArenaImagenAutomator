@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.5.1] - 2026-01-24
 
+### ✨ Added
+- **WebUI**
+  - 增加日志等级的设置
+
 ### 🐛 Fixed
 - **代理**
   - 修复无需鉴权的 Socks5 代理无法使用的问题
