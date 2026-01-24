@@ -226,12 +226,20 @@ async function waitForElementStable(element, stableFrames = 10, timeout = 2000) 
  */
 export async function safeClick(page, target, options = {}) {
     const clickCount = options.clickCount || 1;
-    const timeout = options.timeout || TIMEOUTS.ELEMENT_CLICK;
     const waitStable = options.waitStable !== false; // 默认 true
     const selector = typeof target === 'string' ? target : '元素';
     // humanizeCursorMode: false=禁用, true=ghost-cursor, "camou"=Camoufox内置
     // 只有 true 时才使用 ghost-cursor，其他情况都使用原生点击
     const useGhostCursor = page?._humanizeCursorMode === true && page?.cursor;
+    const cursorSpeed = options.cursorSpeed ?? 40;
+
+    // 动态计算超时时间：使用 ghost-cursor 时，速度越慢超时越长
+    // 公式：基础超时 + 额外时间(50000ms / 速度)
+    // 速度40时额外1.25s，速度10时额外5s，速度5时额外10s
+    const baseTimeout = options.timeout || TIMEOUTS.ELEMENT_CLICK;
+    const timeout = useGhostCursor
+        ? baseTimeout + Math.ceil(50000 / cursorSpeed)
+        : baseTimeout;
 
     const doClick = async () => {
         let el;
@@ -270,7 +278,6 @@ export async function safeClick(page, target, options = {}) {
             if (box) {
                 const { x, y } = getHumanClickPoint(box, options.bias || 'random');
                 logger.debug('浏览器', `[safeClick] 移动鼠标到 (${x.toFixed(0)}, ${y.toFixed(0)})...`);
-                const cursorSpeed = options.cursorSpeed ?? 40;
                 await page.cursor.moveTo({ x, y }, { moveSpeed: cursorSpeed });
                 logger.debug('浏览器', `[safeClick] 执行点击...`);
                 await page.mouse.click(x, y, { clickCount });

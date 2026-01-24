@@ -8,6 +8,7 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import { logger } from '../utils/logger.js';
+import { CAMOUFOX_PATCHES } from '../../scripts/postinstall.js';
 
 const PROJECT_ROOT = process.cwd();
 
@@ -53,16 +54,11 @@ export function preflight() {
         errors.push('better-sqlite3 预编译文件缺失，请运行: npm run init');
     }
 
-    // 2. 检查 camoufox-js 补丁（通过 MD5 对比）
+    // 2. 检查 camoufox-js 补丁（通过 MD5 对比，使用 postinstall.js 导出的补丁列表）
     const patchDir = path.join(PROJECT_ROOT, 'patches');
     const targetDir = path.join(PROJECT_ROOT, 'node_modules', 'camoufox-js', 'dist');
 
-    const patchFiles = {
-        'camoufox-js@0.8.3.locale.patched.js': 'locale.js',
-        'camoufox-js@0.8.3.pkgman.patched.js': 'pkgman.js'
-    };
-
-    for (const [patchName, targetName] of Object.entries(patchFiles)) {
+    for (const [patchName, targetName] of Object.entries(CAMOUFOX_PATCHES)) {
         const patchPath = path.join(patchDir, patchName);
         const targetPath = path.join(targetDir, targetName);
 

@@ -29,6 +29,9 @@ importers:
       got-scraping:
         specifier: ^4.1.2
         version: 4.1.2
+      https-proxy-agent:
+        specifier: ^7.0.6
+        version: 7.0.6
       playwright-core:
         specifier: ^1.57.0
         version: 1.57.0
@@ -38,6 +41,9 @@ importers:
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
+      socks-proxy-agent:
+        specifier: ^8.0.5
+        version: 8.0.5
       yaml:
         specifier: ^2.8.2
         version: 2.8.2
@@ -688,6 +694,10 @@ packages:
   http2-wrapper@2.2.1:
     resolution: {integrity: sha512-V5nVw1PAOgfI3Lmeaj2Exmeg7fenjhRUgz1lPSezy1CuhPYbgQtbQj4jZfEAEMlaL+vupsvhjqCyjzob0yxsmQ==}
     engines: {node: '>=10.19.0'}
+
+  https-proxy-agent@7.0.6:
+    resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
+    engines: {node: '>= 14'}
 
   iconv-lite@0.5.2:
     resolution: {integrity: sha512-kERHXvpSaB4aU3eANwidg79K8FlrN77m8G9V+0vOR3HYaRifrlwMEpT7ZBJqLSEIHnEgJTHcWK82wwLwwKwtag==}
@@ -1704,6 +1714,13 @@ snapshots:
     dependencies:
       quick-lru: 5.1.1
       resolve-alpn: 1.2.1
+
+  https-proxy-agent@7.0.6:
+    dependencies:
+      agent-base: 7.1.4
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
 
   iconv-lite@0.5.2:
     dependencies:

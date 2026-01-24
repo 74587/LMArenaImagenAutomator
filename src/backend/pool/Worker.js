@@ -91,9 +91,9 @@ export class Worker {
 
         logger.info('工作池', `[${this.name}] 正在初始化浏览器...`);
         if (this.proxyConfig) {
-            logger.debug('工作池', `[${this.name}] 使用代理: ${this.proxyConfig.type}://${this.proxyConfig.host}:${this.proxyConfig.port}`);
+            logger.info('工作池', `[${this.name}] 使用代理: ${this.proxyConfig.type}://${this.proxyConfig.host}:${this.proxyConfig.port}`);
         } else {
-            logger.debug('工作池', `[${this.name}] 直连模式（无代理）`);
+            logger.info('工作池', `[${this.name}] 直连模式（无代理）`);
         }
 
         if (sharedBrowser) {

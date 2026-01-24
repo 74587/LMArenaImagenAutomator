@@ -94,44 +94,27 @@ export async function getBrowserProxy(proxyConfig) {
 
     const { type, host, port, user, passwd } = proxyConfig;
 
-    // 对于 SOCKS5 + 认证，需要转换为 HTTP 代理
-    if (type === 'socks5' && user && passwd) {
-        try {
-            const originalUrl = buildProxyUrl(proxyConfig);
-            logger.info('代理器', `检测到需鉴权的 SOCKS5 代理，正在创建本地代理桥接: ${host}:${port}`);
-
-            const httpProxyUrl = await anonymizeProxy(originalUrl);
-
-            // 保存状态用于后续清理
-            proxyState.anonymizedProxyUrl = httpProxyUrl;
-            proxyState.originalProxyUrl = originalUrl;
-
-            logger.info('代理器', `本地代理桥接已建立: ${httpProxyUrl} -> ${host}:${port}`);
-
-            return {
-                server: httpProxyUrl
-            };
-        } catch (error) {
-            logger.error('代理器', `本地代理桥接创建失败: ${error.message}`);
-            throw error;
+    // 构建代理 URL 字符串
+    // 注意：Camoufox 对 socks5:// 协议使用 new URL().origin 会返回 null
+    // 因此我们直接返回完整的 URL 字符串，让 Camoufox 使用 new URL().href
+    let proxyUrl;
+    if (user && passwd) {
+        // 带认证的代理格式: protocol://user:passwd@host:port
+        const protocol = type === 'socks5' ? 'socks5' : 'http';
+        proxyUrl = `${protocol}://${encodeURIComponent(user)}:${encodeURIComponent(passwd)}@${host}:${port}`;
+    } else {
+        // 不带认证的代理格式: protocol://host:port
+        if (type === 'socks5') {
+            proxyUrl = `socks5://${host}:${port}`;
+        } else {
+            proxyUrl = `http://${host}:${port}`;
         }
     }
 
-    // 对于其他情况（HTTP 代理、不带认证的 SOCKS5）
-    const proxyUrl = type === 'socks5' ? `socks5://${host}:${port}` : `${host}:${port}`;
+    logger.info('代理器', `代理配置: ${type}://${host}:${port}${user ? ' (带认证)' : ''}`);
 
-    const proxyObject = {
-        server: proxyUrl
-    };
-
-    // 如果有认证信息，添加到代理对象
-    if (user && passwd) {
-        proxyObject.username = user;
-        proxyObject.password = passwd;
-    }
-
-    logger.info('代理器', `代理配置: ${type}://${host}:${port}`);
-    return proxyObject;
+    // 直接返回字符串格式，Camoufox 会正确解析
+    return proxyUrl;
 }
 
 /**

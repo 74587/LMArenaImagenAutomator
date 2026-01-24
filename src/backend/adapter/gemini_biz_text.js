@@ -317,12 +317,12 @@ export const manifest = {
     models: [
         { id: 'gemini-3-pro', codeName: 'gemini-3-pro-preview', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-2.5-pro', codeName: 'gemini-2.5pro', imagePolicy: 'optional', type: 'text' },
-        { id: 'gemini-3-flash-preview', codeName: 'gemini-3-pro-preview', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-3-flash', codeName: 'gemini-3-pro-preview', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-2.5-flash', codeName: 'gemini-2.5-flash', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-3-pro-grounding', codeName: 'gemini-3-pro-preview', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-2.5-pro-grounding', codeName: 'gemini-2.5-pro', imagePolicy: 'optional', type: 'text' },
         { id: 'gemini-2.5-flash-grounding', codeName: 'gemini-2.5-flash', imagePolicy: 'optional', type: 'text' },
-        { id: 'gemini-3-flash-preview-grounding', codeName: 'gemini-3-flash-preview', imagePolicy: 'optional', type: 'text' },
+        { id: 'gemini-3-flash-grounding', codeName: 'gemini-3-flash-preview', imagePolicy: 'optional', type: 'text' },
     ],
 
     // 导航处理器

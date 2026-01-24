@@ -19,7 +19,8 @@ import { fileURLToPath } from 'url';
 import compressing from 'compressing';
 import { logger } from '../src/utils/logger.js';
 import { select, input } from '@inquirer/prompts';
-import { anonymizeProxy, closeAnonymizedProxy } from 'proxy-chain';
+import { SocksProxyAgent } from 'socks-proxy-agent';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.join(__dirname, '..');
@@ -150,67 +151,45 @@ function validateABI(abi) {
  * @param {number} maxRetries - 最大重试次数
  */
 async function downloadFile(url, destPath, proxyUrl = null, maxRetries = 3) {
-    // 如果是 SOCKS5 代理，先转换为本地 HTTP 代理
-    let effectiveProxyUrl = proxyUrl;
-    let anonymizedProxy = null;
-
-    if (proxyUrl && proxyUrl.startsWith('socks5://')) {
-        try {
-            logger.info('初始化', `检测到 SOCKS5 代理，正在转换为 HTTP 代理...`);
-            anonymizedProxy = await anonymizeProxy(proxyUrl);
-            effectiveProxyUrl = anonymizedProxy;
-            logger.info('初始化', `SOCKS5 代理已转换: ${anonymizedProxy}`);
-        } catch (error) {
-            logger.error('初始化', `SOCKS5 代理转换失败: ${error.message}`);
-            throw error;
-        }
+    if (proxyUrl) {
+        const proxyType = proxyUrl.startsWith('socks') ? 'SOCKS5' : 'HTTP';
+        logger.info('初始化', `使用 ${proxyType} 代理: ${proxyUrl}`);
     }
 
-    try {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                if (attempt > 1) {
-                    logger.info('初始化', `第 ${attempt}/${maxRetries} 次尝试下载...`);
-                    // 删除之前失败的文件
-                    try {
-                        if (fs.existsSync(destPath)) {
-                            fs.unlinkSync(destPath);
-                        }
-                    } catch (e) { }
-                } else {
-                    logger.info('初始化', `开始下载: ${url}`);
-                }
-
-                await downloadFileOnce(url, destPath, effectiveProxyUrl);
-                return destPath;
-            } catch (error) {
-                logger.error('初始化', `下载失败 (尝试 ${attempt}/${maxRetries}): ${error.message}`);
-
-                if (attempt === maxRetries) {
-                    throw error;
-                }
-
-                // 等待后重试（递增延迟）
-                const delay = attempt * 2000;
-                logger.info('初始化', `${delay / 1000} 秒后重试...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            if (attempt > 1) {
+                logger.info('初始化', `第 ${attempt}/${maxRetries} 次尝试下载...`);
+                // 删除之前失败的文件
+                try {
+                    if (fs.existsSync(destPath)) {
+                        fs.unlinkSync(destPath);
+                    }
+                } catch (e) { }
+            } else {
+                logger.info('初始化', `开始下载: ${url}`);
             }
-        }
-    } finally {
-        // 清理 SOCKS5 代理资源
-        if (anonymizedProxy) {
-            try {
-                await closeAnonymizedProxy(anonymizedProxy, true);
-                logger.debug('初始化', '已关闭临时代理桥接');
-            } catch (e) { }
+
+            await downloadFileOnce(url, destPath, proxyUrl);
+            return destPath;
+        } catch (error) {
+            logger.error('初始化', `下载失败 (尝试 ${attempt}/${maxRetries}): ${error.message}`);
+
+            if (attempt === maxRetries) {
+                throw error;
+            }
+
+            // 等待后重试（递增延迟）
+            const delay = attempt * 2000;
+            logger.info('初始化', `${delay / 1000} 秒后重试...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
 }
 
 /**
  * 单次下载尝试（内部函数）
- * 使用 Node.js 原生 http/https 模块，手动管理超时
- * 只有在指定时间内没有任何数据传输才会触发超时
+ * 使用 Node.js 原生 http/https 模块，支持 SOCKS5 和 HTTP 代理
  */
 async function downloadFileOnce(url, destPath, proxyUrl = null) {
     const IDLE_TIMEOUT = 180000; // 3 分钟无数据传输才超时
@@ -232,25 +211,25 @@ async function downloadFileOnce(url, destPath, proxyUrl = null) {
             }
         };
 
-        // 如果有 HTTP 代理（注意：这里只支持 HTTP 代理，SOCKS 需要额外处理）
+        // 创建代理 agent
         let httpModule = isHttps ? https : http;
-        if (proxyUrl && proxyUrl.startsWith('http')) {
-            const proxyUrlObj = new URL(proxyUrl);
-            // 使用 CONNECT 隧道代理
-            requestOptions = {
-                hostname: proxyUrlObj.hostname,
-                port: proxyUrlObj.port || 80,
-                method: 'CONNECT',
-                path: `${urlObj.hostname}:${urlObj.port || (isHttps ? 443 : 80)}`,
-                headers: {
-                    'Host': `${urlObj.hostname}:${urlObj.port || (isHttps ? 443 : 80)}`
-                }
-            };
-            if (proxyUrlObj.username) {
-                const auth = Buffer.from(`${proxyUrlObj.username}:${proxyUrlObj.password || ''}`).toString('base64');
-                requestOptions.headers['Proxy-Authorization'] = `Basic ${auth}`;
+        let agent = null;
+
+        if (proxyUrl) {
+            if (proxyUrl.startsWith('socks')) {
+                // SOCKS5 代理，使用 socks-proxy-agent
+                logger.debug('初始化', `使用 SOCKS5 代理: ${proxyUrl}`);
+                agent = new SocksProxyAgent(proxyUrl);
+            } else if (proxyUrl.startsWith('http')) {
+                // HTTP 代理，使用 https-proxy-agent
+                logger.debug('初始化', `使用 HTTP 代理: ${proxyUrl}`);
+                agent = new HttpsProxyAgent(proxyUrl);
             }
-            httpModule = http; // 代理连接始终是 HTTP
+        }
+
+        // 添加 agent 到请求选项
+        if (agent) {
+            requestOptions.agent = agent;
         }
 
         const fileStream = fs.createWriteStream(destPath);
@@ -362,60 +341,15 @@ async function downloadFileOnce(url, destPath, proxyUrl = null) {
 
         resetIdleTimer();
 
-        // 如果使用代理，先建立隧道
-        if (proxyUrl && proxyUrl.startsWith('http')) {
-            req = http.request(requestOptions);
-            req.on('connect', (res, socket) => {
-                if (res.statusCode !== 200) {
-                    cleanup();
-                    reject(new Error(`代理连接失败: ${res.statusCode}`));
-                    return;
-                }
-
-                // 通过隧道发起真正的 HTTPS 请求
-                const tunnelOptions = {
-                    hostname: urlObj.hostname,
-                    port: urlObj.port || (isHttps ? 443 : 80),
-                    path: urlObj.pathname + urlObj.search,
-                    method: 'GET',
-                    headers: {
-                        'User-Agent': 'Wget/1.21.4 (linux-gnu)',
-                        'Accept': '*/*',
-                        'Accept-Encoding': 'identity',
-                        'Connection': 'keep-alive',
-                        'Host': urlObj.host
-                    },
-                    socket: socket,
-                    agent: false
-                };
-
-                const tunnelReq = (isHttps ? https : http).request(tunnelOptions, handleResponse);
-                tunnelReq.on('error', (error) => {
-                    if (finished) return;
-                    cleanup();
-                    try { fs.unlinkSync(destPath); } catch (e) { }
-                    reject(error);
-                });
-                tunnelReq.end();
-            });
-            req.on('error', (error) => {
-                if (finished) return;
-                cleanup();
-                try { fs.unlinkSync(destPath); } catch (e) { }
-                reject(error);
-            });
-            req.end();
-        } else {
-            // 直连模式
-            req = httpModule.request(requestOptions, handleResponse);
-            req.on('error', (error) => {
-                if (finished) return;
-                cleanup();
-                try { fs.unlinkSync(destPath); } catch (e) { }
-                reject(error);
-            });
-            req.end();
-        }
+        // 统一使用 httpModule.request 发起请求（agent 会自动处理代理）
+        req = httpModule.request(requestOptions, handleResponse);
+        req.on('error', (error) => {
+            if (finished) return;
+            cleanup();
+            try { fs.unlinkSync(destPath); } catch (e) { }
+            reject(error);
+        });
+        req.end();
     });
 }
 
