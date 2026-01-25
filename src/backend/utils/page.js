@@ -182,13 +182,13 @@ export async function scrollToElement(page, selectorOrLocator, options = {}) {
 
 /**
  * 等待 API 响应 (带页面关闭监听和错误关键词检测)
- * 对于流式响应，每次收到数据时会重置超时计时器
+ * 匹配到响应后会等待请求完成（requestfinished），使用 60 秒空闲超时保护
  * @param {import('playwright-core').Page} page - Playwright 页面对象
  * @param {object} options - 等待选项
  * @param {string} options.urlMatch - URL 匹配字符串
  * @param {string|string[]} [options.urlContains] - URL 必须额外包含的字符串（可选，可以是数组）
  * @param {string} [options.method='POST'] - HTTP 方法
- * @param {number} [options.timeout=120000] - 超时时间（毫秒），流式响应收到数据时会重置
+ * @param {number} [options.timeout=120000] - 等待响应出现的超时时间（毫秒）
  * @param {string|string[]} [options.errorText] - 错误关键词，页面 UI 或 API 响应体中出现时立即停止并返回错误
  * @param {object} [options.meta={}] - 日志元数据
  * @returns {Promise<import('playwright-core').Response>} 响应对象
@@ -272,44 +272,44 @@ export async function waitApiResponse(page, options = {}) {
                 page.off('response', responseHandler);
                 responseHandler = null;
 
-                // 检查是否为流式响应
-                const contentType = res.headers()['content-type'] || '';
-                const isStreaming = contentType.includes('text/event-stream') ||
-                    contentType.includes('application/stream') ||
-                    contentType.includes('text/plain');
+                // 统一等待请求完成（无论流式还是非流式）
+                // 使用 timeout 作为空闲超时，防止连接卡住无限等待
+                let idleTimerId = null;
 
-                if (isStreaming) {
-                    // 流式响应：取消固定超时，依赖 requestfinished 事件判断完成
-                    // 因为流式响应可能持续很长时间，固定超时不适用
-                    if (timerId) {
-                        clearTimeout(timerId);
-                        timerId = null;
-                    }
-
-                    const request = res.request();
-
-                    const finishedHandler = (req) => {
-                        if (req === request) {
-                            page.off('requestfinished', finishedHandler);
-                            page.off('requestfailed', failedHandler);
-                            resolve(res);
-                        }
-                    };
-
-                    const failedHandler = (req) => {
-                        if (req === request) {
-                            page.off('requestfinished', finishedHandler);
-                            page.off('requestfailed', failedHandler);
-                            reject(new Error('NETWORK_FAILED: 流式请求失败'));
-                        }
-                    };
-
-                    page.on('requestfinished', finishedHandler);
-                    page.on('requestfailed', failedHandler);
-                } else {
-                    // 非流式响应，直接返回
-                    resolve(res);
+                // 取消初始超时，启动空闲超时
+                if (timerId) {
+                    clearTimeout(timerId);
+                    timerId = null;
                 }
+
+                idleTimerId = setTimeout(() => {
+                    page.off('requestfinished', finishedHandler);
+                    page.off('requestfailed', failedHandler);
+                    reject(new Error(`API_TIMEOUT: 响应传输超时 (${Math.round(timeout / 1000)}秒未完成)`));
+                }, timeout);
+
+                const request = res.request();
+
+                const finishedHandler = (req) => {
+                    if (req === request) {
+                        if (idleTimerId) clearTimeout(idleTimerId);
+                        page.off('requestfinished', finishedHandler);
+                        page.off('requestfailed', failedHandler);
+                        resolve(res);
+                    }
+                };
+
+                const failedHandler = (req) => {
+                    if (req === request) {
+                        if (idleTimerId) clearTimeout(idleTimerId);
+                        page.off('requestfinished', finishedHandler);
+                        page.off('requestfailed', failedHandler);
+                        reject(new Error('NETWORK_FAILED: 请求失败'));
+                    }
+                };
+
+                page.on('requestfinished', finishedHandler);
+                page.on('requestfailed', failedHandler);
             };
 
             page.on('response', responseHandler);
