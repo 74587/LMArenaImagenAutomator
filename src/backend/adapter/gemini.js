@@ -91,7 +91,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             await safeClick(page, createVideosBtn, { bias: 'button' });
         } else {
             logger.debug('适配器', '点击 Create images 按钮...', meta);
-            const createImagesBtn = page.getByRole('button', { name: 'Create images' });
+            const createImagesBtn = page.getByRole('menuitemcheckbox', { name: 'Create images' });
             await safeClick(page, createImagesBtn, { bias: 'button' });
         }
 
