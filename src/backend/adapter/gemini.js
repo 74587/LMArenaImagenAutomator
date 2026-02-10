@@ -51,7 +51,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             await safeClick(page, uploadMenuBtn, { bias: 'button' });
 
             // 使用公共函数上传文件
-            const uploadFilesBtn = page.getByRole('button', { name: /Upload files/ });
+            const uploadFilesBtn = page.getByRole('menuitem', { name: /Upload files/ });
             await uploadFilesViaChooser(page, uploadFilesBtn, imgPaths, {
                 uploadValidator: (response) => {
                     const url = response.url();

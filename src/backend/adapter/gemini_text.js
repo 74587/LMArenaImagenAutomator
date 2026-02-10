@@ -48,7 +48,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             const uploadMenuBtn = page.getByRole('button', { name: 'Open upload file menu' });
             await safeClick(page, uploadMenuBtn, { bias: 'button' });
 
-            const uploadFilesBtn = page.getByRole('button', { name: /Upload files/ });
+            const uploadFilesBtn = page.getByRole('menuitem', { name: /Upload files/ });
             await uploadFilesViaChooser(page, uploadFilesBtn, imgPaths, {
                 uploadValidator: (response) => {
                     const url = response.url();
