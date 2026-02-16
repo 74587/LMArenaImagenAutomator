@@ -108,9 +108,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         let textContent = '';
         let isComplete = false;
-        let responseFragmentIndex = -1;  // RESPONSE 类型 fragment 的数组索引
-        let currentFragmentIndex = -1;   // 当前正在追加内容的 fragment 数组索引
-        let fragmentCount = 0;           // fragments 数组的当前长度
+        let isCollecting = false;  // 当前最后一个 fragment 是否为 RESPONSE 类型
 
         const responsePromise = page.waitForResponse(async (response) => {
             const url = response.url();
@@ -132,50 +130,16 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                     try {
                         const data = JSON.parse(dataStr);
 
-                        // 初始响应中可能已有 fragments (如 SEARCH)
+                        // --- 处理 fragment 列表变更，更新 isCollecting 状态 ---
+
+                        // 初始响应中可能已有 fragments (如 SEARCH / RESPONSE)
                         if (data.v?.response?.fragments && Array.isArray(data.v.response.fragments)) {
                             for (const fragment of data.v.response.fragments) {
-                                const idx = fragmentCount++;
                                 if (fragment.type === 'RESPONSE') {
-                                    responseFragmentIndex = idx;
-                                    currentFragmentIndex = idx;
-                                    if (fragment.content) {
-                                        textContent += fragment.content;
-                                    }
+                                    isCollecting = true;
+                                    if (fragment.content) textContent += fragment.content;
                                 } else {
-                                    currentFragmentIndex = idx;
-                                }
-                            }
-                        }
-
-                        // 简单的文本追加 (只有 v 字符串，没有 p 和 o)
-                        // 只有当前活跃的 fragment 是 RESPONSE 类型时才收集
-                        if (data.v && typeof data.v === 'string' && !data.p && !data.o) {
-                            if (currentFragmentIndex === responseFragmentIndex && responseFragmentIndex >= 0) {
-                                textContent += data.v;
-                            }
-                        }
-
-                        // 带路径的 APPEND 操作 (如 response/fragments/1/content)
-                        if (data.o === 'APPEND' && data.p && typeof data.v === 'string') {
-                            const match = data.p.match(/response\/fragments\/(\d+)\/content/);
-                            if (match) {
-                                const fragIdx = parseInt(match[1], 10);
-                                currentFragmentIndex = fragIdx;
-                                if (fragIdx === responseFragmentIndex) {
-                                    textContent += data.v;
-                                }
-                            }
-                        }
-
-                        // 不带操作符的路径设置 (如 {"v": "xxx", "p": "response/fragments/1/content"})
-                        if (data.p && typeof data.v === 'string' && !data.o) {
-                            const match = data.p.match(/response\/fragments\/(\d+)\/content/);
-                            if (match) {
-                                const fragIdx = parseInt(match[1], 10);
-                                currentFragmentIndex = fragIdx;
-                                if (fragIdx === responseFragmentIndex) {
-                                    textContent += data.v;
+                                    isCollecting = false;
                                 }
                             }
                         }
@@ -183,16 +147,11 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                         // fragments APPEND - 新增 fragment (非 BATCH)
                         if (data.p === 'response/fragments' && data.o === 'APPEND' && Array.isArray(data.v)) {
                             for (const fragment of data.v) {
-                                const idx = fragmentCount++;
                                 if (fragment.type === 'RESPONSE') {
-                                    responseFragmentIndex = idx;
-                                    currentFragmentIndex = idx;
-                                    if (fragment.content) {
-                                        textContent += fragment.content;
-                                    }
+                                    isCollecting = true;
+                                    if (fragment.content) textContent += fragment.content;
                                 } else {
-                                    // THINK 或 SEARCH
-                                    currentFragmentIndex = idx;
+                                    isCollecting = false;
                                 }
                             }
                         }
@@ -200,27 +159,45 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                         // BATCH 操作中的 fragments
                         if (data.o === 'BATCH' && data.p === 'response' && Array.isArray(data.v)) {
                             for (const item of data.v) {
-                                // fragments 追加
                                 if (item.p === 'fragments' && item.o === 'APPEND' && Array.isArray(item.v)) {
                                     for (const fragment of item.v) {
-                                        const idx = fragmentCount++;
                                         if (fragment.type === 'RESPONSE') {
-                                            responseFragmentIndex = idx;
-                                            currentFragmentIndex = idx;
-                                            if (fragment.content) {
-                                                textContent += fragment.content;
-                                            }
+                                            isCollecting = true;
+                                            if (fragment.content) textContent += fragment.content;
                                         } else {
-                                            // THINK 或 SEARCH
-                                            currentFragmentIndex = idx;
+                                            isCollecting = false;
                                         }
                                     }
                                 }
-                                // 检查是否完成
-                                if (item.p === 'status' && item.v === 'FINISHED') {
+                                // 检查是否完成 (quasi_status 或 status)
+                                if ((item.p === 'status' || item.p === 'quasi_status') && item.v === 'FINISHED') {
                                     isComplete = true;
                                 }
                             }
+                        }
+
+                        // --- 处理文本内容追加 ---
+
+                        // 带路径的 content 操作 (如 response/fragments/-1/content)
+                        if (data.p && typeof data.v === 'string') {
+                            const match = data.p.match(/response\/fragments\/(-?\d+)\/content/);
+                            if (match && isCollecting) {
+                                textContent += data.v;
+                            }
+                        }
+
+                        // 纯文本追加 (只有 v 字符串，没有 p 和 o)
+                        if (data.v && typeof data.v === 'string' && !data.p && !data.o) {
+                            if (isCollecting) {
+                                textContent += data.v;
+                            }
+                        }
+
+                        // --- 检查完成信号 ---
+
+                        // 独立的 status SET 操作
+                        if (data.p === 'response/status' && data.o === 'SET' && data.v === 'FINISHED') {
+                            isComplete = true;
                         }
                     } catch {
                         // 忽略解析错误
