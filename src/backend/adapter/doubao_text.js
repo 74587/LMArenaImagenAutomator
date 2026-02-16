@@ -45,21 +45,43 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         if (imgPaths && imgPaths.length > 0) {
             logger.info('适配器', `开始上传 ${imgPaths.length} 张图片...`, meta);
 
-            // 点击上传菜单按钮
-            const uploadMenuBtn = page.locator('main button[aria-haspopup="menu"]').first();
-            await safeClick(page, uploadMenuBtn, { bias: 'button' });
-            await sleep(300, 500);
-
-            // 点击上传文件选项
-            const uploadItem = page.locator('div[data-testid="upload_file_panel_upload_item"][role="menuitem"]');
-            await uploadFilesViaChooser(page, uploadItem, imgPaths, {
-                uploadValidator: (response) => {
+            // 预先拦截 ApplyImageUpload 响应，动态收集实际上传路径
+            const expectedUploadPaths = new Set();
+            const applyUploadHandler = async (response) => {
+                try {
                     const url = response.url();
-                    return response.status() === 200 &&
-                        url.includes('bytedanceapi.com') &&
-                        url.includes('Action=CommitImageUpload');
-                }
-            }, meta);
+                    if (!url.includes('Action=ApplyImageUpload') || response.status() !== 200) return;
+                    const json = await response.json();
+                    const storeUri = json.Result?.UploadAddress?.StoreInfos?.[0]?.StoreUri;
+                    if (storeUri) {
+                        expectedUploadPaths.add(storeUri);
+                        logger.debug('适配器', `已获取上传路径: ${storeUri}`, meta);
+                    }
+                } catch { /* 忽略解析错误 */ }
+            };
+            page.on('response', applyUploadHandler);
+
+            try {
+                // 点击上传菜单按钮
+                const uploadMenuBtn = page.locator('main button[aria-haspopup="menu"]').first();
+                await safeClick(page, uploadMenuBtn, { bias: 'button' });
+                await sleep(300, 500);
+
+                // 点击上传文件选项
+                const uploadItem = page.locator('div[data-testid="upload_file_panel_upload_item"][role="menuitem"]');
+                await uploadFilesViaChooser(page, uploadItem, imgPaths, {
+                    uploadValidator: (response) => {
+                        if (response.status() !== 200 || response.request().method() !== 'POST') return false;
+                        const url = response.url();
+                        for (const path of expectedUploadPaths) {
+                            if (url.includes(path)) return true;
+                        }
+                        return false;
+                    }
+                }, meta);
+            } finally {
+                page.off('response', applyUploadHandler);
+            }
 
             logger.info('适配器', '图片上传完成', meta);
         }

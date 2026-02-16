@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Fixed
 - **适配器**
   - 修复 DeepSeek 文本生成适配器因接口格式更新导致无法获取生成结果
+  - 修复 豆包 适配器图片上传逻辑更改导致上传进度验证失败的问题
 
 ## [3.5.2] - 2026-02-10
 
