@@ -78,20 +78,20 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         // 5. 点击 Create images / Create videos 按钮
         if (isVideoModel) {
-            logger.debug('适配器', '点击 Create videos 按钮...', meta);
-            const createVideosBtn = page.getByRole('button', { name: /^Create videos/ });
+            logger.debug('适配器', '点击 Create video 按钮...', meta);
+            const createVideosBtn = page.getByRole('menuitemcheckbox', { name: 'Create video' });
 
             // 检查按钮是否存在（有些账号可能没有视频生成功能）
             const btnCount = await createVideosBtn.count();
             if (btnCount === 0) {
                 logger.error('适配器', '未找到 Create videos 按钮，该账号可能不支持视频生成', meta);
-                return { error: '该账号不支持视频生成功能 (未找到 Create videos 按钮)' };
+                return { error: '该账号不支持视频生成功能 (未找到 Create video 按钮)' };
             }
 
             await safeClick(page, createVideosBtn, { bias: 'button' });
         } else {
-            logger.debug('适配器', '点击 Create images 按钮...', meta);
-            const createImagesBtn = page.getByRole('menuitemcheckbox', { name: 'Create images' });
+            logger.debug('适配器', '点击 Create image 按钮...', meta);
+            const createImagesBtn = page.getByRole('menuitemcheckbox', { name: 'Create image' });
             await safeClick(page, createImagesBtn, { bias: 'button' });
         }
 
