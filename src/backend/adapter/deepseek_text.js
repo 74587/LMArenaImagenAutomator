@@ -79,7 +79,7 @@ async function configureModel(page, modelConfig, meta = {}) {
  * @param {string[]} imgPaths - 图片路径数组 (此适配器不支持)
  * @param {string} [modelId] - 模型 ID
  * @param {object} [meta={}] - 日志元数据
- * @returns {Promise<{text?: string, error?: string}>}
+ * @returns {Promise<{text?: string, reasoning?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     const { page, config } = context;
@@ -108,8 +108,10 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         logger.debug('适配器', '启动 API 监听...', meta);
 
         let textContent = '';
+        let thinkingContent = '';  // thinking 内容
         let isComplete = false;
         let isCollecting = false;  // 当前最后一个 fragment 是否为 RESPONSE 类型
+        let isCollectingThinking = false;  // 是否正在收集 thinking
 
         const responsePromise = page.waitForResponse(async (response) => {
             const url = response.url();
@@ -133,14 +135,21 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
                         // --- 处理 fragment 列表变更，更新 isCollecting 状态 ---
 
-                        // 初始响应中可能已有 fragments (如 SEARCH / RESPONSE)
+                        // 初始响应中可能已有 fragments (如 THINK / SEARCH / RESPONSE)
                         if (data.v?.response?.fragments && Array.isArray(data.v.response.fragments)) {
                             for (const fragment of data.v.response.fragments) {
                                 if (fragment.type === 'RESPONSE') {
                                     isCollecting = true;
+                                    isCollectingThinking = false;
                                     if (fragment.content) textContent += fragment.content;
+                                } else if (fragment.type === 'THINK') {
+                                    // DeepSeek 使用 THINK (不是 THINKING)
+                                    isCollectingThinking = true;
+                                    isCollecting = false;
+                                    if (fragment.content) thinkingContent += fragment.content;
                                 } else {
                                     isCollecting = false;
+                                    isCollectingThinking = false;
                                 }
                             }
                         }
@@ -150,9 +159,15 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                             for (const fragment of data.v) {
                                 if (fragment.type === 'RESPONSE') {
                                     isCollecting = true;
+                                    isCollectingThinking = false;
                                     if (fragment.content) textContent += fragment.content;
+                                } else if (fragment.type === 'THINK') {
+                                    isCollectingThinking = true;
+                                    isCollecting = false;
+                                    if (fragment.content) thinkingContent += fragment.content;
                                 } else {
                                     isCollecting = false;
+                                    isCollectingThinking = false;
                                 }
                             }
                         }
@@ -164,9 +179,15 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                                     for (const fragment of item.v) {
                                         if (fragment.type === 'RESPONSE') {
                                             isCollecting = true;
+                                            isCollectingThinking = false;
                                             if (fragment.content) textContent += fragment.content;
+                                        } else if (fragment.type === 'THINK') {
+                                            isCollectingThinking = true;
+                                            isCollecting = false;
+                                            if (fragment.content) thinkingContent += fragment.content;
                                         } else {
                                             isCollecting = false;
+                                            isCollectingThinking = false;
                                         }
                                     }
                                 }
@@ -182,8 +203,12 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                         // 带路径的 content 操作 (如 response/fragments/-1/content)
                         if (data.p && typeof data.v === 'string') {
                             const match = data.p.match(/response\/fragments\/(-?\d+)\/content/);
-                            if (match && isCollecting) {
-                                textContent += data.v;
+                            if (match) {
+                                if (isCollecting) {
+                                    textContent += data.v;
+                                } else if (isCollectingThinking) {
+                                    thinkingContent += data.v;
+                                }
                             }
                         }
 
@@ -191,6 +216,8 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                         if (data.v && typeof data.v === 'string' && !data.p && !data.o) {
                             if (isCollecting) {
                                 textContent += data.v;
+                            } else if (isCollectingThinking) {
+                                thinkingContent += data.v;
                             }
                         }
 
@@ -233,7 +260,16 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         logger.info('适配器', `已获取文本内容 (${textContent.length} 字符)`, meta);
         logger.info('适配器', '文本生成完成，任务完成', meta);
-        return { text: textContent.trim() };
+
+        const trimmedThinking = thinkingContent.trim();
+        const result = { text: textContent.trim() };
+
+        // 返回结果（如果有 thinking 则包含 reasoning）
+        if (trimmedThinking) {
+            logger.info('适配器', `已获取思考过程 (${trimmedThinking.length} 字符)`, meta);
+            result.reasoning = trimmedThinking;
+        }
+        return result;
 
     } catch (err) {
         // 顶层错误处理

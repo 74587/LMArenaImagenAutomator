@@ -27,7 +27,7 @@ const TARGET_URL = 'https://gemini.google.com/app?hl=en';
  * @param {string[]} imgPaths - 图片路径数组
  * @param {string} [modelId] - 模型 ID (此适配器未使用)
  * @param {object} [meta={}] - 日志元数据
- * @returns {Promise<{text?: string, error?: string}>}
+ * @returns {Promise<{text?: string, reasoning?: string, error?: string}>}
  */
 async function generate(context, prompt, imgPaths, modelId, meta = {}) {
     const { page, config } = context;
@@ -172,11 +172,11 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         const bodyBuffer = await apiResponse.body();
         logger.debug('适配器', `收到响应体，字节数: ${bodyBuffer.length}`, meta);
 
-        const text = getFinalAiTextFromResponse(bodyBuffer);
+        const { text, reasoning } = getFinalAiTextFromResponse(bodyBuffer);
 
         if (text) {
-            logger.info('适配器', `解析成功，文本长度: ${text.length}`, meta);
-            return { text };
+            logger.info('适配器', `解析成功，文本长度: ${text.length}，思考长度: ${reasoning?.length || 0}`, meta);
+            return reasoning ? { text, reasoning } : { text };
         } else {
             return { error: '未能从响应中提取文本' };
         }
@@ -390,19 +390,80 @@ function collectRcTextsDeep(root) {
 }
 
 /**
- * 从响应体 Buffer 中提取最终 AI 文本
+ * 从单个 payload 中提取文本和 thinking 内容
+ * @param {Array} payload - 解析后的 payload
+ * @returns {{text: string, thinking: string}}
+ */
+function extractTextAndThinking(payload) {
+    let text = '';
+    let thinking = '';
+
+    try {
+        if (!Array.isArray(payload)) return { text, thinking };
+
+        // 找 rc 节点 (通常在 payload[4][0])
+        // 结构: payload[4][0] = ["rc_xxx", ["text..."], ..., [37]: [[thinking]]]
+        let rc = null;
+        if (payload[4] && Array.isArray(payload[4][0]) &&
+            typeof payload[4][0][0] === 'string' && payload[4][0][0].startsWith('rc_')) {
+            rc = payload[4][0];
+        }
+
+        if (!rc) return { text, thinking };
+
+        // 文本在 rc[1][0]
+        if (Array.isArray(rc[1]) && typeof rc[1][0] === 'string') {
+            text = rc[1][0];
+        }
+
+        // thinking 在 rc[37][0][0]
+        // 结构: rc[37] = [["**Thinking Title**\n\nThinking content..."]]
+        try {
+            if (rc[37] && Array.isArray(rc[37]) && rc[37][0] && Array.isArray(rc[37][0])) {
+                if (typeof rc[37][0][0] === 'string') {
+                    thinking = rc[37][0][0];
+                }
+            }
+        } catch {
+            // thinking 提取失败，忽略
+        }
+    } catch {
+        // ignore
+    }
+
+    return { text, thinking };
+}
+
+/**
+ * 从响应体 Buffer 中提取最终 AI 文本和 thinking
  * @param {Buffer} bodyBuffer - 响应体 Buffer
+ * @returns {{text: string, reasoning: string}}
  */
 function getFinalAiTextFromResponse(bodyBuffer) {
     const frames = parseLenFramedResponse(bodyBuffer);
     const payloads = extractPayloads(frames);
 
-    let best = "";
+    let bestText = '';
+    let bestThinking = '';
+
+    // 遍历所有 payload，保留最长的 text 和对应的 thinking
     for (const payload of payloads) {
-        const m = collectRcTextsDeep(payload);
-        for (const text of m.values()) {
-            if (text.length > best.length) best = text;
+        const { text, thinking } = extractTextAndThinking(payload);
+        if (text.length > bestText.length) {
+            bestText = text;
+            bestThinking = thinking;
         }
     }
-    return best;
+
+    // 如果 extractTextAndThinking 没找到（可能结构不匹配），fallback 到 collectRcTextsDeep
+    if (!bestText) {
+        for (const payload of payloads) {
+            const m = collectRcTextsDeep(payload);
+            for (const text of m.values()) {
+                if (text.length > bestText.length) bestText = text;
+            }
+        }
+    }
+
+    return { text: bestText, reasoning: bestThinking };
 }

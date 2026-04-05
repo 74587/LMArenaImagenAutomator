@@ -94,7 +94,7 @@ export function createQueueManager(queueConfig, callbacks) {
      * @param {TaskContext} task - 任务上下文
      */
     async function processTask(task) {
-        const { res, prompt, imagePaths, modelId, modelName, id, isStreaming } = task;
+        const { res, prompt, imagePaths, modelId, modelName, id, isStreaming, reasoning } = task;
         const startTime = Date.now();
 
         logger.info('服务器', '[队列] 开始处理任务', { id, remaining: queue.length });
@@ -133,7 +133,7 @@ export function createQueueManager(queueConfig, callbacks) {
             }
 
             // 调用核心生图逻辑 (通过 Pool 分发)
-            const result = await generate(poolContext, prompt, imagePaths, modelId, { id });
+            const result = await generate(poolContext, prompt, imagePaths, modelId, { id, reasoning });
 
             // 清除心跳
             if (heartbeatInterval) clearInterval(heartbeatInterval);

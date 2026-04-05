@@ -18,8 +18,8 @@ import {
 import { logger } from '../../utils/logger.js';
 
 // --- 配置常量 ---
-const TARGET_URL = 'https://lmarena.ai/c/new?mode=direct&chat-modality=chat';
-const TARGET_URL_SEARCH = 'https://lmarena.ai/zh/c/new?mode=direct&chat-modality=search';
+const TARGET_URL = 'https://arena.ai/text/direct';
+const TARGET_URL_SEARCH = 'https://arena.ai/search/direct';
 
 /**
  * 执行生图任务
@@ -134,30 +134,48 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
         }
 
         // 9. 解析文本流
-        // 格式示例:
+        // SSE 格式说明:
+        // - a0: 回复内容（最终文本）
+        // - ag: 思考过程 (thinking/reasoning) - 仅 thinking 模型有
+        // - a2: 心跳 [{"type":"heartbeat"}]
+        // - ad: 结束标记 {"finishReason":"stop"}
+        // 示例:
+        // ag:"Let me think..."
         // a0:"Hello"
         // a0:" World"
-        // d:{"finishReason":"stop"}
+        // ad:{"finishReason":"stop"}
         let fullText = '';
+        let thinkingText = '';
         const lines = content.split('\n');
 
         for (const line of lines) {
             if (line.startsWith('a0:')) {
                 try {
-                    // 尝试解析 JSON 字符串内容
-                    // line.substring(3) 应该是 JSON 字符串，如 "Hello"
                     const textPart = JSON.parse(line.substring(3));
                     fullText += textPart;
                 } catch (e) {
-                    // 如果解析失败，可能是原生文本或其他格式
                     logger.warn('适配器', `解析文本块失败: ${line}`, meta);
+                }
+            } else if (line.startsWith('ag:')) {
+                // 思考过程内容
+                try {
+                    const thinkPart = JSON.parse(line.substring(3));
+                    thinkingText += thinkPart;
+                } catch (e) {
+                    logger.warn('适配器', `解析思考块失败: ${line}`, meta);
                 }
             }
         }
 
         if (fullText) {
             logger.info('适配器', `获取文本成功，长度: ${fullText.length}`, meta);
-            return { text: fullText };
+            const result = { text: fullText };
+            // 如果有思考过程，添加到 reasoning 字段
+            if (thinkingText.trim()) {
+                logger.info('适配器', `获取思考过程，长度: ${thinkingText.length}`, meta);
+                result.reasoning = thinkingText;
+            }
+            return result;
         } else {
             logger.warn('适配器', '未解析到有效文本内容', { ...meta, preview: content.substring(0, 150) });
             // 如果没解析到 a0，尝试直接返回原始内容防空

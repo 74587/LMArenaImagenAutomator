@@ -175,9 +175,15 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
                 return { error: errorMsg };
             }
 
-            // 取第一张图片，追加 =s1024-rj 获取高分辨率
-            const imageUrl = imageUrls[0] + '=s1024-rj';
+            // 取第一张图片，追加 =d-I 获取全尺寸原图（而非 =s1024-rj 的缩略图）
+            const imageUrl = imageUrls[0] + '=d-I';
             logger.info('适配器', `找到 ${imageUrls.length} 张图片，开始下载...`, meta);
+
+            // 提取图片生成的详细描述（thinking）
+            const thinking = extractImageThinking(bodyBuffer);
+            if (thinking) {
+                logger.info('适配器', `提取到详细描述，长度: ${thinking.length}`, meta);
+            }
 
             // 使用封装的下载函数
             const imgDlCfg = config?.backend?.pool?.failover || {};
@@ -190,7 +196,8 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
             }
 
             logger.info('适配器', '已获取图片，任务完成', meta);
-            return result;
+            // 返回图片和 thinking（如果有）
+            return thinking ? { ...result, reasoning: thinking } : result;
         }
 
     } catch (err) {
@@ -425,6 +432,59 @@ function extractAiTextFromResponse(bodyBuffer) {
         const m = collectRcTextsDeep(payload);
         for (const text of m.values()) {
             if (text.length > best.length) best = text;
+        }
+    }
+    return best;
+}
+
+/**
+ * 深度遍历，查找长文本描述（图片生成的 thinking/详细描述）
+ * 排除 URL、base64、分类器名称等非描述性长字符串
+ * @param {any} root - 要遍历的对象
+ * @returns {string} 最长的描述文本，未找到则返回空字符串
+ */
+function findLongDescriptionDeep(root) {
+    const candidates = [];
+    const stack = [root];
+
+    while (stack.length) {
+        const cur = stack.pop();
+        if (!cur) continue;
+
+        if (typeof cur === 'string') {
+            if (cur.length > 200 &&
+                !cur.startsWith('http') &&
+                !cur.startsWith('data:') &&
+                !cur.includes('googleapis.com') &&
+                !cur.includes('googleusercontent.com') &&
+                !/^[A-Za-z0-9+/=]{100,}$/.test(cur)) {
+                candidates.push(cur);
+            }
+        } else if (Array.isArray(cur)) {
+            for (const v of cur) stack.push(v);
+        } else if (typeof cur === 'object') {
+            for (const v of Object.values(cur)) stack.push(v);
+        }
+    }
+
+    if (candidates.length === 0) return '';
+    return candidates.reduce((a, b) => a.length >= b.length ? a : b, '');
+}
+
+/**
+ * 从响应体 Buffer 中提取图片生成的详细描述（thinking）
+ * @param {Buffer} bodyBuffer - 响应体 Buffer
+ * @returns {string} 详细描述文本，未找到则返回空字符串
+ */
+function extractImageThinking(bodyBuffer) {
+    const frames = parseLenFramedResponse(bodyBuffer);
+    const payloads = extractPayloads(frames);
+
+    let best = '';
+    for (const payload of payloads) {
+        const text = findLongDescriptionDeep(payload);
+        if (text.length > best.length) {
+            best = text;
         }
     }
     return best;
