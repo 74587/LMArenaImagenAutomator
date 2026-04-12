@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Fixed
 - **适配器**
   - 修复豆包因前端更新导致点击失效
+  - 修复 ChatGPT 无法发送提示词的问题
 
 ## [3.6.5] - 2026-04-09
 

@@ -85,7 +85,7 @@ async function generate(context, prompt, imgPaths, modelId, meta = {}) {
 
         // 4. 发送提示词
         logger.debug('适配器', '发送提示词...', meta);
-        await safeClick(page, sendBtnLocator, { bias: 'button' });
+        await page.keyboard.press('Enter');
 
         logger.info('适配器', '等待生成结果...', meta);
 
